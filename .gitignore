@@ -144,6 +144,16 @@ coverage.xml
 # Local history
 .history/
 
+# Debian build artifacts
+.debhelper/
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/launchinfra/
+debian/*.substvars
+debian/*.buildinfo
+debian/*.changes
+
 # Vagrant
 .vagrant/
 
