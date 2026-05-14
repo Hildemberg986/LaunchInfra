@@ -1,14 +1,157 @@
-*.tar
-*.tar.*
-*.jar
-*.exe
-*.msi
-*.deb
-*.zip
-*.tgz
+# ============================================
+# Gitignore Projeto LaunchInfra
+# Script de gerenciamento Nginx/SSL
+# ============================================
+
+# Logs
 *.log
 *.log.*
-*.sig
+logs/
+log/
 
-pkg/
-src/
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+*~
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+.*.swp
+._*
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Editor files
+.vscode/
+.idea/
+*.sublime-*
+.project
+.classpath
+.settings/
+
+# Test files
+test/
+tests/
+*.test.sh
+*.test
+
+# Secrets and sensitive data
+.secrets/
+secrets/
+*.key
+*.pem
+*.crt
+*.cert
+*.priv
+*.private
+.env
+.env.local
+.env.*.local
+config/local/
+.credentials/
+
+# Certificates (these should be regenerated)
+# Comment out if you want to keep certificate templates
+*.crt
+*.csr
+*.p12
+
+# Python (if using for testing)
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env/
+.venv/
+
+# Node (if using for testing)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Docker (if using)
+docker-compose.override.yml
+*.dockerignore
+.docker/
+
+# Backup directories
+backup/
+backups/
+*.tar.gz
+*.tgz
+*.zip
+*.rar
+*.7z
+
+# Local configuration overrides
+config.local
+*.local
+
+# Certbot temporary files
+.certbot/
+letsencrypt/
+
+# Temporary nginx configs
+/etc/nginx/sites-available/*.tmp
+/etc/nginx/sites-enabled/*.tmp
+
+# Documentation build
+docs/_build/
+docs/api/
+
+# Coverage reports
+coverage/
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# IDE specific
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# Local history
+.history/
+
+# Vagrant
+.vagrant/
+
+# Ansible (if using)
+*.retry
+ansible/inventory/local
+
+# Terraform (if using)
+*.tfstate
+*.tfstate.*
+.terraform/
