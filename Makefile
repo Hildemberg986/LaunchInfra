@@ -14,6 +14,22 @@ all:
 build:
 	dpkg-buildpackage -us -uc -b
 
+.PHONY: install-deps-build
+install-deps-build:
+	@echo "Instalando dependências de compilação..."
+	sudo apt update
+	sudo apt install -y devscripts debhelper build-essential
+
+.PHONY: install-deps-runtime
+install-deps-runtime:
+	@echo "Instalando dependências de runtime..."
+	sudo apt update
+	sudo apt install -y nginx certbot python3-certbot-nginx
+
+.PHONY: install-deps
+install-deps: install-deps-build install-deps-runtime
+	@echo "✓ Todas as dependências instaladas!"
+
 .PHONY: install
 install:
 	install -D src/launchinfra.sh $(DESTDIR)/usr/bin/launchinfra
