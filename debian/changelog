@@ -1,0 +1,15 @@
+launchinfra (2.0-5) unstable; urgency=medium
+
+  * Adicionado suporte a --no-ssl para criar projetos sem certificado SSL (HTTP)
+  * Adicionado suporte a --force para forçar criação mesmo com conflitos
+  * Melhorado parsing de argumentos para suportar flags em qualquer ordem
+  * Corrigido bootstrap para carregar bibliotecas do caminho correto de instalação
+  * Script centralizado de versionamento (scripts/bump-version.sh)
+
+ -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 14 May 2026 14:35:24 +0000
+
+launchinfra (2.0-1) unstable; urgency=medium
+
+  * Empacote inicial (construído a partir do repositório upstream).
+
+ -- Hildemberg Eling <hildembergeling@gmail.com>  Wed, 14 May 2026 12:00:00 +0000

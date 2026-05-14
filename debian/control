@@ -1,0 +1,14 @@
+Source: launchinfra
+Section: utils
+Priority: optional
+Maintainer: Hildemberg Eling <hildembergeling@gmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.5.0
+Homepage: https://github.com/Hildemberg986/LaunchInfra
+
+Package: launchinfra
+Architecture: all
+Depends: ${misc:Depends}, bash
+Description: Gerenciador de Projetos Web - LaunchInfra
+ LaunchInfra é uma ferramenta para criar e gerenciar sites e proxies
+ Nginx com suporte automático a certificados Let's Encrypt.
