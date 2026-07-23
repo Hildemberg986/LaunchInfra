@@ -1,0 +1,56 @@
+name: 📦 Publicar Repositório APT
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  pages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: repo
+
+      - name: Download .deb da release
+        run: |
+          mkdir -p new_repo/pool/main/l/launchinfra
+          DEB_URL=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | grep "browser_download_url.*deb" | cut -d '"' -f 4)
+          curl -L -o new_repo/pool/main/l/launchinfra/launchinfra.deb "$DEB_URL"
+          
+      - name: Copiar repositório existente
+        run: |
+          if [ -d "repo/pool" ]; then
+            cp -r repo/pool new_repo/ 2>/dev/null || true
+          fi
+
+      - name: Gerar estrutura APT
+        run: |
+          cd new_repo
+          mkdir -p dists/stable/main/binary-amd64
+          dpkg-scanpackages pool /dev/null > dists/stable/main/binary-amd64/Packages
+          gzip -9 dists/stable/main/binary-amd64/Packages
+          cat > dists/stable/Release << EOF
+Origin: LaunchInfra
+Label: LaunchInfra
+Suite: stable
+Codename: stable
+Architectures: amd64 all
+Components: main
+Description: LaunchInfra - Gerenciador de Projetos Web com Nginx e Let's Encrypt
+Date: $(date -Ru)
+EOF
+          apt-ftparchive release dists/stable >> dists/stable/Release
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./new_repo
+          publish_branch: gh-pages
+          force_orphan: false
