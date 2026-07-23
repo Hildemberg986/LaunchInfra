@@ -10,7 +10,8 @@ else
     REAL_USER="$USER"
 fi
 
-HOME_DIR=$(eval echo "~$REAL_USER")
+HOME_DIR=$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6)
+[ -z "$HOME_DIR" ] && HOME_DIR="/home/$REAL_USER"
 
 # Valores padrão (usuário deve configurar com launchinfra config)
 DOMINIO_BASE="${DOMINIO_BASE:-}"
@@ -91,5 +92,5 @@ log_to_file() {
     local msg="$1"
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    echo "[$timestamp] [$REAL_USER] $msg" | run_helper tee-log "$LOG_FILE"
+    printf '[%s] [%s] %s\n' "$timestamp" "$REAL_USER" "$msg" | run_helper tee-log "$LOG_FILE"
 }

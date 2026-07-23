@@ -1,5 +1,6 @@
 #!/bin/bash
 # LaunchInfra bootstrap: load modules and dispatch CLI
+set -eo pipefail
 
 BASEDIR=$(dirname "$0")
 LIBDIR="$BASEDIR/lib"

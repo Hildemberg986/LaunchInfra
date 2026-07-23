@@ -24,7 +24,7 @@ list_ports() {
 check_domain() {
     local domain=$1
     local escaped_domain
-    escaped_domain=$(echo "$domain" | sed 's/\./\\./g')
+    escaped_domain=$(printf '%s\n' "$domain" | sed 's/\./\\./g')
     if [ -f "$NGINX_AVAILABLE/$domain" ] ||
         grep -qr "server_name $escaped_domain\b" "$NGINX_AVAILABLE/" 2>/dev/null ||
         grep -qr "server_name $escaped_domain\b" "$NGINX_ENABLED/" 2>/dev/null; then
@@ -81,7 +81,7 @@ show_project_info() {
 
     local domain port ssl enabled dir created ssl_expiry
     domain=$(grep -m1 "server_name" "$config_file" | awk '{print $2}' | tr -d ';')
-    port=$(grep -m1 "proxy_pass" "$config_file" | grep -oP '\d+' | tail -1)
+    port=$(grep -m1 "proxy_pass" "$config_file" | grep -oE '[0-9]+' | tail -1)
     ssl="Não"
     grep -q "ssl_certificate" "$config_file" 2>/dev/null && ssl="Sim"
     enabled="Não"
@@ -89,6 +89,7 @@ show_project_info() {
     dir="$USER_DIR/$project"
     [ ! -d "$dir" ] && dir="(não encontrado)"
     created=$(stat -c '%y' "$config_file" 2>/dev/null | cut -d. -f1)
+    [ -z "$created" ] && created=$(date -r "$config_file" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
     ssl_expiry="N/A"
     if [ "$ssl" = "Sim" ] && [ -n "$domain" ]; then
         ssl_expiry=$(echo | run_helper openssl-check "$domain" 2>/dev/null | cut -d= -f2)

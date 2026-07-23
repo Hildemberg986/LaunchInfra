@@ -26,6 +26,11 @@ show_version() {
     echo "LaunchInfra v2.1.0"
 }
 
+validate_email() {
+    local email="$1"
+    [[ "$email" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]
+}
+
 show_help() {
     echo -e "${BLUE}LaunchInfra - Gerenciador de Projetos Web${NC}"
     echo -e "${BLUE}© 2024 Hildemberg Eling de Araújo Lucena${NC}"
@@ -99,6 +104,10 @@ dispatch_cli() {
             case "$1" in
             --email)
                 EMAIL_ARG="$2"
+                if ! validate_email "$EMAIL_ARG"; then
+                    echo "Email inválido: $EMAIL_ARG"
+                    return 1
+                fi
                 shift 2
                 ;;
             --domain | --dominio)
