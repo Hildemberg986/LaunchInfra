@@ -44,7 +44,6 @@ $RECYCLE.BIN/
 .settings/
 
 # Test files
-test/
 tests/
 *.test.sh
 *.test
@@ -63,12 +62,6 @@ secrets/
 .env.*.local
 config/local/
 .credentials/
-
-# Certificates (these should be regenerated)
-# Comment out if you want to keep certificate templates
-*.crt
-*.csr
-*.p12
 
 # Python (if using for testing)
 __pycache__/
@@ -109,10 +102,6 @@ config.local
 .certbot/
 letsencrypt/
 
-# Temporary nginx configs
-/etc/nginx/sites-available/*.tmp
-/etc/nginx/sites-enabled/*.tmp
-
 # Documentation build
 docs/_build/
 docs/api/
@@ -131,16 +120,6 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
-# IDE specific
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.project
-.classpath
-.settings/
-
 # Local history
 .history/
 
@@ -153,6 +132,14 @@ debian/launchinfra/
 debian/*.substvars
 debian/*.buildinfo
 debian/*.changes
+debian/launchinfra.substvars
+
+# LaunchInfra específicos
+tee-nginx
+launchinfra
+../launchinfra_*.deb
+../launchinfra_*.buildinfo
+../launchinfra_*.changes
 
 # Vagrant
 .vagrant/
@@ -165,3 +152,6 @@ ansible/inventory/local
 *.tfstate
 *.tfstate.*
 .terraform/
+
+# Bats test artifacts
+bats-*/
