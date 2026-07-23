@@ -1,5 +1,5 @@
 #!/bin/bash
-# utility functions: ports, domain checks, listing
+# utility functions: ports, domain checks, listing, info, backup, ssl check
 NGINX_AVAILABLE="/etc/nginx/sites-available"
 NGINX_ENABLED="/etc/nginx/sites-enabled"
 
@@ -14,15 +14,20 @@ check_port() {
 
 list_ports() {
     echo -e "\n=== Portas em uso no sistema ==="
-    ss -tuln | grep -E 'LISTEN|LISTENING' | awk '{print $5}' | cut -d: -f2 | sort -n | uniq | while read port; do
-        process=$(lsof -i :$port 2>/dev/null | grep LISTEN | head -1 | awk '{print $1}')
+    ss -tuln | grep -E 'LISTEN' | awk '{print $5}' | rev | cut -d: -f1 | rev | sort -n | uniq | while read -r port; do
+        [ -z "$port" ] && continue
+        process=$(lsof -i :"$port" 2>/dev/null | grep LISTEN | head -1 | awk '{print $1}')
         echo "  Porta $port: ${process:-desconhecido}"
     done
 }
 
 check_domain() {
     local domain=$1
-    if [ -f "$NGINX_AVAILABLE/$domain" ] || grep -r "server_name $domain" "$NGINX_AVAILABLE/" 2>/dev/null | grep -q .; then
+    local escaped_domain
+    escaped_domain=$(echo "$domain" | sed 's/\./\\./g')
+    if [ -f "$NGINX_AVAILABLE/$domain" ] ||
+        grep -qr "server_name $escaped_domain\b" "$NGINX_AVAILABLE/" 2>/dev/null ||
+        grep -qr "server_name $escaped_domain\b" "$NGINX_ENABLED/" 2>/dev/null; then
         return 0
     else
         return 1
@@ -41,4 +46,113 @@ list_projects() {
             fi
         fi
     done
+}
+
+# Mostrar info detalhada de um projeto
+show_project_info() {
+    local project=$1
+    local config_file="$NGINX_AVAILABLE/$project"
+
+    if [ ! -f "$config_file" ]; then
+        log_error "Projeto '$project' não encontrado"
+        return 1
+    fi
+
+    local domain
+    domain=$(grep -m1 "server_name" "$config_file" | awk '{print $2}' | tr -d ';')
+
+    local port
+    port=$(grep -m1 "proxy_pass" "$config_file" | grep -oP '\d+' | tail -1)
+
+    local ssl="Não"
+    grep -q "ssl_certificate" "$config_file" 2>/dev/null && ssl="Sim"
+
+    local enabled="Não"
+    [ -L "$NGINX_ENABLED/$project" ] && enabled="Sim"
+
+    local dir="$DIR_BASE/$project"
+    [ ! -d "$dir" ] && dir="(não encontrado)"
+
+    # Data do arquivo de config
+    local created
+    created=$(stat -c '%y' "$config_file" 2>/dev/null | cut -d. -f1)
+
+    # Expiração SSL
+    local ssl_expiry="N/A"
+    if [ "$ssl" = "Sim" ] && [ -n "$domain" ]; then
+        ssl_expiry=$(sudo openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+        [ -z "$ssl_expiry" ] && ssl_expiry="Não foi possível verificar"
+    fi
+
+    echo -e "\n${BLUE}=== $project ===${NC}"
+    echo "  Domínio:    ${domain:-N/A}"
+    echo "  Porta:      ${port:-N/A (site estático)}"
+    echo "  SSL:        $ssl"
+    echo "  Ativo:      $enabled"
+    echo "  Diretório:  $dir"
+    echo "  Criado em:  ${created:-N/A}"
+    [ "$ssl" = "Sim" ] && echo "  SSL expira: $ssl_expiry"
+}
+
+# Verificar SSL de todos os projetos
+check_all_ssl() {
+    echo -e "\n${BLUE}=== Verificação de Certificados SSL ===${NC}"
+    local found=0
+    for config in "$NGINX_AVAILABLE"/*; do
+        if [ -f "$config" ] && grep -q "ssl_certificate" "$config" 2>/dev/null; then
+            found=1
+            local project
+            project=$(basename "$config")
+            local domain
+            domain=$(grep -m1 "server_name" "$config" | awk '{print $2}' | tr -d ';')
+
+            if [ -n "$domain" ]; then
+                local expiry
+                expiry=$(sudo openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+                if [ -n "$expiry" ]; then
+                    local expiry_epoch
+                    expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null)
+                    local now_epoch
+                    now_epoch=$(date +%s)
+                    local days_left
+                    days_left=$(((expiry_epoch - now_epoch) / 86400))
+
+                    if [ "$days_left" -lt 30 ]; then
+                        echo -e "  ${RED}⚠ $project ($domain): $days_left dias restantes - RENOVE!${NC}"
+                    else
+                        echo -e "  ${GREEN}✓ $project ($domain): $days_left dias restantes${NC}"
+                    fi
+                else
+                    echo -e "  ${YELLOW}? $project ($domain): Não foi possível verificar${NC}"
+                fi
+            fi
+        fi
+    done
+    [ "$found" -eq 0 ] && echo "  Nenhum projeto com SSL encontrado."
+}
+
+# Backup de projeto
+backup_project() {
+    local project=$1
+    local dir="$DIR_BASE/$project"
+
+    if [ ! -d "$dir" ]; then
+        log_error "Diretório do projeto '$project' não encontrado"
+        return 1
+    fi
+
+    local backup_name
+    local backup_dir
+    backup_name="$project-$(date +%Y%m%d-%H%M%S).tar.gz"
+    backup_dir="/tmp/launchinfra-backups"
+    mkdir -p "$backup_dir"
+
+    log_info "Criando backup de $project..."
+    if sudo tar czf "$backup_dir/$backup_name" -C "$DIR_BASE" "$project" 2>/dev/null; then
+        sudo chown "$USER:$USER" "$backup_dir/$backup_name"
+        log_success "Backup salvo em: $backup_dir/$backup_name"
+    else
+        log_error "Falha ao criar backup"
+        return 1
+    fi
 }

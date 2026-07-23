@@ -1,25 +1,36 @@
 #!/bin/bash
-# nginx / project operations: create and remove
+# nginx / project operations: create, remove, disable, restore, dry-run
 
 create_project() {
-    local PROJETO="" PORTA="" NO_SSL="" FORCE=""
-    
-    # Parse arguments - separate positional from flags
+    local PROJETO="" PORTA="" NO_SSL="" FORCE="" DRY_RUN="" CUSTOM_DOMAIN="" TEMPLATE=""
+
+    # Parse arguments
     for arg in "$@"; do
         case "$arg" in
-            --no-ssl) NO_SSL="--no-ssl" ;;
-            --force) FORCE="--force" ;;
-            *)
-                if [ -z "$PROJETO" ]; then
-                    PROJETO="$arg"
-                elif [ -z "$PORTA" ]; then
-                    # Check if it looks like a port number (not a flag)
-                    if [[ "$arg" =~ ^[0-9]+$ ]]; then
-                        PORTA="$arg"
-                    fi
+        --no-ssl) NO_SSL="--no-ssl" ;;
+        --force) FORCE="--force" ;;
+        --dry-run) DRY_RUN="--dry-run" ;;
+        --domain | --dominio)
+            # próximo argumento é o domínio
+            ;;
+        --template)
+            # próximo argumento é o template
+            ;;
+        *)
+            if [ -z "$PROJETO" ]; then
+                PROJETO="$arg"
+            elif [ "$prev_arg" = "--domain" ] || [ "$prev_arg" = "--dominio" ]; then
+                CUSTOM_DOMAIN="$arg"
+            elif [ "$prev_arg" = "--template" ]; then
+                TEMPLATE="$arg"
+            elif [ -z "$PORTA" ]; then
+                if [[ "$arg" =~ ^[0-9]+$ ]]; then
+                    PORTA="$arg"
                 fi
-                ;;
+            fi
+            ;;
         esac
+        prev_arg="$arg"
     done
 
     if [ -z "$PROJETO" ]; then
@@ -27,85 +38,246 @@ create_project() {
         return 1
     fi
 
-    local DOMINIO="$PROJETO.$DOMINIO_BASE"
+    if [[ ! "$PROJETO" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        log_error "Nome de projeto inválido. Use apenas letras, números, hífen e underscore."
+        return 1
+    fi
+
+    if [ "$NO_SSL" != "--no-ssl" ]; then
+        if [ -z "$EMAIL" ]; then
+            log_error "EMAIL não configurado. Execute: launchinfra config --email seu@email.com"
+            return 1
+        fi
+        if [ -z "$CUSTOM_DOMAIN" ] && [ -z "$DOMINIO_BASE" ]; then
+            log_error "DOMINIO_BASE não configurado. Execute: launchinfra config --domain exemplo.com"
+            return 1
+        fi
+    fi
+
+    local DOMINIO
+    if [ -n "$CUSTOM_DOMAIN" ]; then
+        DOMINIO="$CUSTOM_DOMAIN"
+    else
+        DOMINIO="$PROJETO.$DOMINIO_BASE"
+    fi
+
     local DIR="$DIR_BASE/$PROJETO"
 
+    # Dry run
+    if [ "$DRY_RUN" = "--dry-run" ]; then
+        echo -e "\n${BLUE}=== DRY RUN ===${NC}"
+        echo "  Projeto:      $PROJETO"
+        echo "  Domínio:      $DOMINIO"
+        echo "  Porta:        ${PORTA:-N/A (site estático)}"
+        echo "  SSL:          $([ "$NO_SSL" = "--no-ssl" ] && echo 'Não' || echo 'Sim')"
+        echo "  Diretório:    $DIR"
+        echo "  Template:     ${TEMPLATE:-padrão}"
+        echo "  Forçar:       $([ "$FORCE" = "--force" ] && echo 'Sim' || echo 'Não')"
+        echo -e "${BLUE}================${NC}\n"
+        log_info "DRY RUN: $PROJETO ($DOMINIO) - nenhuma alteração aplicada"
+        return 0
+    fi
+
+    # Verificações de conflito
     if [ -z "$FORCE" ] && [ "$FORCE" != "--force" ]; then
         if [ -f "/etc/nginx/sites-available/$PROJETO" ]; then
-            log_error "Projeto $PROJETO já existe!"; return 1
+            log_error "Projeto $PROJETO já existe!"
+            return 1
         fi
         if [ "$NO_SSL" != "--no-ssl" ] && check_domain "$DOMINIO"; then
-            log_error "Domínio $DOMINIO já está em uso!"; return 1
+            log_error "Domínio $DOMINIO já está em uso!"
+            return 1
         fi
         if [ -n "$PORTA" ] && check_port "$PORTA"; then
-            log_warning "Porta $PORTA está em uso!"; list_ports
-            read -p "Deseja continuar mesmo assim? (s/N): " continue_port
+            log_warning "Porta $PORTA está em uso!"
+            list_ports
+            read -r -p "Deseja continuar mesmo assim? (s/N): " continue_port
             if [[ ! $continue_port =~ ^[Ss]$ ]]; then return 1; fi
         fi
     fi
 
-    log_info "Criando projeto: $PROJETO"
+    log_info "Criando projeto: $PROJETO ($DOMINIO)"
     sudo mkdir -p "$DIR"
-    sudo tee "$DIR/index.html" > /dev/null << HTML
+
+    # Template customizado ou padrão
+    if [ -n "$TEMPLATE" ] && [ -d "$TEMPLATE" ]; then
+        sudo cp -r "$TEMPLATE"/* "$DIR/"
+    else
+        sudo tee "$DIR/index.html" >/dev/null <<HTML
 <!DOCTYPE html>
 <html lang="pt-br">
 <head><meta charset="utf-8"><title>$PROJETO</title></head>
 <body><h1>$PROJETO</h1><p>Powered by LaunchInfra</p></body></html>
 HTML
+    fi
     sudo chown -R www-data:www-data "$DIR"
 
-    if [ "$NO_SSL" != "--no-ssl" ]; then
-        log_info "Gerando certificado SSL para $DOMINIO..."
-        sudo certbot certonly --webroot -w /var/www/letsencrypt --agree-tos --email "$EMAIL" -d "$DOMINIO" --quiet 2>/dev/null || true
-
-        if [ -n "$PORTA" ]; then
-            sudo tee "/etc/nginx/sites-available/$PROJETO" > /dev/null << NGINX
-server {
-    listen 443 ssl http2;
-    server_name $DOMINIO;
-    ssl_certificate /etc/letsencrypt/live/$DOMINIO/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/$DOMINIO/privkey.pem;
-    add_header Strict-Transport-Security "max-age=31536000" always;
-    location / { proxy_pass http://127.0.0.1:$PORTA; proxy_set_header Host \$host; }
-}
-server { listen 80; server_name $DOMINIO; return 301 https://\$host\$request_uri; }
-NGINX
-        else
-            sudo tee "/etc/nginx/sites-available/$PROJETO" > /dev/null << NGINX
-server { listen 443 ssl http2; server_name $DOMINIO; ssl_certificate /etc/letsencrypt/live/$DOMINIO/fullchain.pem; ssl_certificate_key /etc/letsencrypt/live/$DOMINIO/privkey.pem; root $DIR; index index.html; add_header Strict-Transport-Security "max-age=31536000" always; location / { try_files \$uri \$uri/ =404; } }
-server { listen 80; server_name $DOMINIO; return 301 https://\$host\$request_uri; }
-NGINX
-        fi
-    else
-        log_info "Criando projeto sem SSL (HTTP apenas)"
-        if [ -n "$PORTA" ]; then
-            sudo tee "/etc/nginx/sites-available/$PROJETO" > /dev/null << NGINX
+    # Configuração Nginx HTTP
+    if [ -n "$PORTA" ]; then
+        sudo tee "/etc/nginx/sites-available/$PROJETO" >/dev/null <<NGINX
 server {
     listen 80;
     server_name $DOMINIO;
-    location / { proxy_pass http://127.0.0.1:$PORTA; proxy_set_header Host \$host; }
+    location / {
+        proxy_pass http://127.0.0.1:$PORTA;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
 }
 NGINX
-        else
-            sudo tee "/etc/nginx/sites-available/$PROJETO" > /dev/null << NGINX
-server { listen 80; server_name $DOMINIO; root $DIR; index index.html; location / { try_files \$uri \$uri/ =404; } }
+    else
+        sudo tee "/etc/nginx/sites-available/$PROJETO" >/dev/null <<NGINX
+server {
+    listen 80;
+    server_name $DOMINIO;
+    root $DIR;
+    index index.html;
+    location / {
+        try_files \$uri \$uri/ =404;
+    }
+}
 NGINX
-        fi
     fi
 
     sudo ln -sf "/etc/nginx/sites-available/$PROJETO" "/etc/nginx/sites-enabled/"
-    if sudo nginx -t 2>/dev/null; then sudo systemctl reload nginx; log_success "Nginx recarregado"; else log_error "Erro na configuração do Nginx"; sudo nginx -t; return 1; fi
-    log_success "Projeto $PROJETO criado"
+    if ! sudo nginx -t 2>/dev/null; then
+        log_error "Erro na configuração do Nginx"
+        sudo nginx -t
+        return 1
+    fi
+    sudo systemctl reload nginx
+    log_success "Nginx configurado com HTTP"
+
+    # SSL
+    if [ "$NO_SSL" != "--no-ssl" ]; then
+        log_info "Obtendo certificado SSL para $DOMINIO..."
+        if sudo certbot --nginx -d "$DOMINIO" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log"; then
+            log_success "Certificado SSL instalado com sucesso"
+        else
+            log_warning "Falha ao obter certificado SSL. O site continua funcionando em HTTP."
+            log_warning "Verifique: 1) Domínio $DOMINIO aponta para este servidor? 2) Porta 80 está acessível?"
+        fi
+    else
+        log_info "Projeto criado sem SSL (HTTP apenas)"
+    fi
+
+    log_success "Projeto $PROJETO criado com sucesso!"
+    if [ "$NO_SSL" != "--no-ssl" ]; then
+        echo "  → https://$DOMINIO"
+    else
+        echo "  → http://$DOMINIO"
+    fi
 }
 
 remove_project() {
-    local project=$1 domain="$project.$DOMINIO_BASE"
+    local project=$1
+    local with_backup=""
+
+    if [ -z "$project" ]; then
+        log_error "Nome do projeto é obrigatório"
+        return 1
+    fi
+
+    # Verifica flag --backup
+    if [ "$2" = "--backup" ]; then
+        with_backup="1"
+    fi
+
+    local domain="$project.$DOMINIO_BASE"
+
+    # Backup antes de remover
+    if [ -n "$with_backup" ]; then
+        backup_project "$project"
+    fi
+
     log_info "Removendo projeto: $project"
     sudo rm -f "/etc/nginx/sites-enabled/$project" "/etc/nginx/sites-available/$project"
-    read -p "Remover certificado SSL? (s/N): " remove_ssl
-    if [[ $remove_ssl =~ ^[Ss]$ ]]; then sudo certbot delete --cert-name "$domain" --quiet 2>/dev/null; fi
-    read -p "Remover arquivos do projeto em $DIR_BASE/$project? (s/N): " remove_files
-    if [[ $remove_files =~ ^[Ss]$ ]]; then sudo rm -rf "$DIR_BASE/$project"; fi
+
+    read -r -p "Remover certificado SSL? (s/N): " remove_ssl
+    if [[ $remove_ssl =~ ^[Ss]$ ]]; then
+        sudo certbot delete --cert-name "$domain" --quiet 2>/dev/null && log_success "Certificado removido" || log_warning "Certificado não encontrado"
+    fi
+
+    read -r -p "Remover arquivos do projeto em $DIR_BASE/$project? (s/N): " remove_files
+    if [[ $remove_files =~ ^[Ss]$ ]]; then
+        sudo rm -rf "$DIR_BASE/$project"
+        log_success "Arquivos removidos"
+    fi
+
     sudo nginx -t && sudo systemctl reload nginx
     log_success "Projeto $project removido"
+}
+
+# Desativar projeto (remove symlink apenas)
+disable_project() {
+    local project=$1
+    if [ -z "$project" ]; then
+        log_error "Nome do projeto é obrigatório"
+        return 1
+    fi
+
+    if [ ! -L "$NGINX_ENABLED/$project" ]; then
+        log_warning "Projeto '$project' já está desativado"
+        return 0
+    fi
+
+    sudo rm -f "$NGINX_ENABLED/$project"
+    sudo nginx -t && sudo systemctl reload nginx
+    log_success "Projeto '$project' desativado (config preservada)"
+}
+
+# Reativar projeto (recria symlink)
+restore_project() {
+    local project=$1
+    if [ -z "$project" ]; then
+        log_error "Nome do projeto é obrigatório"
+        return 1
+    fi
+
+    if [ ! -f "$NGINX_AVAILABLE/$project" ]; then
+        log_error "Config do projeto '$project' não encontrada em $NGINX_AVAILABLE"
+        return 1
+    fi
+
+    if [ -L "$NGINX_ENABLED/$project" ]; then
+        log_warning "Projeto '$project' já está ativo"
+        return 0
+    fi
+
+    sudo ln -sf "$NGINX_AVAILABLE/$project" "$NGINX_ENABLED/$project"
+    sudo nginx -t && sudo systemctl reload nginx
+    log_success "Projeto '$project' restaurado"
+}
+
+# Renovar SSL de um projeto
+renew_ssl() {
+    local project=$1
+    if [ -z "$project" ]; then
+        log_error "Nome do projeto é obrigatório"
+        return 1
+    fi
+
+    local config_file="$NGINX_AVAILABLE/$project"
+    if [ ! -f "$config_file" ]; then
+        log_error "Projeto '$project' não encontrado"
+        return 1
+    fi
+
+    if ! grep -q "ssl_certificate" "$config_file" 2>/dev/null; then
+        log_warning "Projeto '$project' não tem SSL configurado"
+        return 1
+    fi
+
+    local domain
+    domain=$(grep -m1 "server_name" "$config_file" | awk '{print $2}' | tr -d ';')
+
+    log_info "Renovando SSL para $domain..."
+    if sudo certbot renew --cert-name "$domain" --quiet 2>/dev/null; then
+        log_success "SSL renovado com sucesso"
+    else
+        log_warning "Renovação falhou, tentando forçar..."
+        sudo certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log"
+    fi
 }

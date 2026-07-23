@@ -2,15 +2,13 @@
 # CLI helpers and command dispatch
 
 get_version() {
-    # Tenta ler do changelog em desenvolvimento
     if [ -f "debian/changelog" ]; then
         head -1 debian/changelog | sed -n 's/launchinfra (\([^)]*\)).*/\1/p'
         return
     fi
-    
-    # Tenta caminhos de produção
+
     for changelog in /usr/share/doc/launchinfra/changelog.Debian.gz \
-                     /usr/share/doc/launchinfra/changelog.Debian; do
+        /usr/share/doc/launchinfra/changelog.Debian; do
         if [ -f "$changelog" ]; then
             if [[ "$changelog" == *.gz ]]; then
                 zcat "$changelog" 2>/dev/null | head -1 | sed -n 's/launchinfra (\([^)]*\)).*/\1/p'
@@ -20,8 +18,7 @@ get_version() {
             return
         fi
     done
-    
-    # Fallback
+
     echo "2.0"
 }
 
@@ -30,45 +27,58 @@ show_version() {
 }
 
 show_help() {
-    cat << HELP
-${BLUE}LaunchInfra - Gerenciador de Projetos Web${NC}
-${BLUE}© 2024 Hildemberg Eling de Araújo Lucena${NC}
-
-${YELLOW}USO:${NC}
-  launchinfra NOME [PORTA] [OPÇÕES]
-  launchinfra config [--email EMAIL] [--domain DOMINIO_BASE] [--system]
-  launchinfra --version
-  launchinfra --list
-  launchinfra --list-ports
-  launchinfra --remove NOME
-  launchinfra --check-port PORTA
-  launchinfra --check-domain NOME
-
-${YELLOW}OPÇÕES:${NC}
-  --version, -v       Mostra versão e informações de licença
-  --help, -h          Mostra esta ajuda
-  --list              Lista todos os projetos
-  --list-ports        Mostra portas em uso
-  --remove NOME       Remove um projeto
-  --check-port PORTA  Verifica se porta está em uso
-  --check-domain NOME Verifica se domínio está em uso
-  --no-ssl            Cria projeto sem certificado SSL (HTTP)
-  --force             Força criação mesmo com conflitos
-  config              Define EMAIL e DOMINIO_BASE
-
-${YELLOW}EXEMPLOS:${NC}
-  launchinfra site-estatico              # Site estático com SSL
-  launchinfra api 3000                   # Proxy para porta 3000 com SSL
-  launchinfra teste --no-ssl             # Site estático sem SSL (HTTP)
-  launchinfra jenkins 8080 --force       # Força criação mesmo com conflitos
-  launchinfra config --email dev@exemplo.com
-  launchinfra config --domain exemplo.com
-
-${YELLOW}LICENÇA:${NC}
-  Este software é de uso permitido, mas redistribuição é PROIBIDA
-  sem autorização do autor. Veja "launchinfra --version"
-
-HELP
+    echo -e "${BLUE}LaunchInfra - Gerenciador de Projetos Web${NC}"
+    echo -e "${BLUE}© 2024 Hildemberg Eling de Araújo Lucena${NC}"
+    echo ""
+    echo -e "${YELLOW}USO:${NC}"
+    echo "  launchinfra NOME [PORTA] [OPÇÕES]"
+    echo "  launchinfra config [--email EMAIL] [--domain DOMINIO_BASE] [--system]"
+    echo "  launchinfra --version | --help"
+    echo "  launchinfra --list | --list-ports"
+    echo "  launchinfra --remove NOME [--backup]"
+    echo "  launchinfra --disable NOME"
+    echo "  launchinfra --restore NOME"
+    echo "  launchinfra --info NOME"
+    echo "  launchinfra --renew NOME"
+    echo "  launchinfra --check-ssl"
+    echo "  launchinfra --check-port PORTA"
+    echo "  launchinfra --check-domain NOME"
+    echo ""
+    echo -e "${YELLOW}OPÇÕES:${NC}"
+    echo "  --version, -v        Mostra versão"
+    echo "  --help, -h           Mostra esta ajuda"
+    echo "  --list               Lista todos os projetos"
+    echo "  --list-ports         Mostra portas em uso"
+    echo "  --info NOME          Mostra detalhes de um projeto"
+    echo "  --remove NOME        Remove um projeto"
+    echo "  --remove NOME --backup  Remove com backup"
+    echo "  --disable NOME       Desativa projeto (preserva config)"
+    echo "  --restore NOME       Reativa projeto desativado"
+    echo "  --renew NOME         Renova certificado SSL"
+    echo "  --check-ssl          Verifica expiração de todos os SSLs"
+    echo "  --check-port PORTA   Verifica se porta está em uso"
+    echo "  --check-domain NOME  Verifica se domínio está em uso"
+    echo "  --dry-run            Simula criação sem aplicar"
+    echo "  --no-ssl             Cria projeto sem SSL (HTTP)"
+    echo "  --force              Força criação mesmo com conflitos"
+    echo "  --domain DOMINIO     Domínio customizado (não usa DOMINIO_BASE)"
+    echo "  --template DIR       Diretório com template HTML"
+    echo "  config               Define EMAIL e DOMINIO_BASE"
+    echo ""
+    echo -e "${YELLOW}EXEMPLOS:${NC}"
+    echo "  launchinfra site-estatico"
+    echo "  launchinfra api 3000"
+    echo "  launchinfra app --domain meusite.com.br 8080"
+    echo "  launchinfra teste --no-ssl"
+    echo "  launchinfra blog --template ~/meu-template/"
+    echo "  launchinfra prod 8080 --force"
+    echo "  launchinfra novo --dry-run"
+    echo "  launchinfra config --email dev@exemplo.com"
+    echo "  launchinfra config --domain exemplo.com"
+    echo ""
+    echo -e "${YELLOW}LICENÇA:${NC}"
+    echo "  Este software é de uso permitido, mas redistribuição é PROIBIDA"
+    echo "  sem autorização do autor. Veja \"launchinfra --version\""
 }
 
 dispatch_cli() {
@@ -80,62 +90,103 @@ dispatch_cli() {
     fi
 
     case "$1" in
-        config)
-            shift
-            TARGET="user"
-            EMAIL_ARG=""
-            DOMAIN_ARG=""
-            while [ $# -gt 0 ]; do
-                case "$1" in
-                    --email)
-                        EMAIL_ARG="$2"; shift 2;;
-                    --domain|--dominio)
-                        DOMAIN_ARG="$2"; shift 2;;
-                    --system)
-                        TARGET="system"; shift;;
-                    --show)
-                        show_config; return 0;;
-                    --help|-h)
-                        echo "Uso: launchinfra config [--email EMAIL] [--domain DOMINIO_BASE] [--system] [--show]"
-                        return 0;;
-                    *)
-                        echo "Opção inválida: $1"
-                        return 1;;
-                esac
-            done
-
-            if [ -n "$EMAIL_ARG" ]; then
-                save_config "EMAIL" "$EMAIL_ARG" "$TARGET" && echo "EMAIL salvo em $TARGET config"
-            fi
-            if [ -n "$DOMAIN_ARG" ]; then
-                save_config "DOMINIO_BASE" "$DOMAIN_ARG" "$TARGET" && echo "DOMINIO_BASE salvo em $TARGET config"
-            fi
-            if [ -z "$EMAIL_ARG" ] && [ -z "$DOMAIN_ARG" ]; then
-                echo "Nada para salvar. Use --email ou --domain, ou --show para exibir."
+    config)
+        shift
+        TARGET="user"
+        EMAIL_ARG=""
+        DOMAIN_ARG=""
+        while [ $# -gt 0 ]; do
+            case "$1" in
+            --email)
+                EMAIL_ARG="$2"
+                shift 2
+                ;;
+            --domain | --dominio)
+                DOMAIN_ARG="$2"
+                shift 2
+                ;;
+            --system)
+                TARGET="system"
+                shift
+                ;;
+            --show)
+                show_config
+                return 0
+                ;;
+            --help | -h)
+                echo "Uso: launchinfra config [--email EMAIL] [--domain DOMINIO_BASE] [--system] [--show]"
+                return 0
+                ;;
+            *)
+                echo "Opção inválida: $1"
                 return 1
-            fi
-            return 0
-            ;;
-        --version|-v)
-            show_version; return 0;;
-        --help|-h)
-            show_help; return 0;;
-        --list)
-            list_projects; return 0;;
-        --list-ports)
-            list_ports; return 0;;
-        --remove)
-            remove_project "$2"
-            return $?;;
-        --check-port)
-            if check_port "$2"; then echo "in use"; else echo "available"; fi
-            return 0;;
-        --check-domain)
-            if check_domain "$2"; then echo "in use"; else echo "available"; fi
-            return 0;;
-        *)
-            create_project "$@"
-            return $?
-            ;;
+                ;;
+            esac
+        done
+
+        if [ -n "$EMAIL_ARG" ]; then
+            save_config "EMAIL" "$EMAIL_ARG" "$TARGET" && echo "EMAIL salvo em $TARGET config"
+        fi
+        if [ -n "$DOMAIN_ARG" ]; then
+            save_config "DOMINIO_BASE" "$DOMAIN_ARG" "$TARGET" && echo "DOMINIO_BASE salvo em $TARGET config"
+        fi
+        if [ -z "$EMAIL_ARG" ] && [ -z "$DOMAIN_ARG" ]; then
+            echo "Nada para salvar. Use --email ou --domain, ou --show para exibir."
+            return 1
+        fi
+        return 0
+        ;;
+    --version | -v)
+        show_version
+        return 0
+        ;;
+    --help | -h)
+        show_help
+        return 0
+        ;;
+    --list | ls)
+        list_projects
+        return 0
+        ;;
+    --list-ports | ports)
+        list_ports
+        return 0
+        ;;
+    --info)
+        show_project_info "$2"
+        return $?
+        ;;
+    --remove | rm)
+        remove_project "$2" "$3"
+        return $?
+        ;;
+    --disable)
+        disable_project "$2"
+        return $?
+        ;;
+    --restore | --enable)
+        restore_project "$2"
+        return $?
+        ;;
+    --renew)
+        renew_ssl "$2"
+        return $?
+        ;;
+    --check-ssl)
+        check_all_ssl
+        return 0
+        ;;
+    --check-port)
+        if check_port "$2"; then echo "in use"; else echo "available"; fi
+        return 0
+        ;;
+    --check-domain)
+        if check_domain "$2"; then echo "in use"; else echo "available"; fi
+        return 0
+        ;;
+    *)
+        create_project "$@"
+        return $?
+        ;;
     esac
 }
