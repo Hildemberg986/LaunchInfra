@@ -9,9 +9,9 @@ Ferramenta para criar e gerenciar sites e proxies Nginx com suporte a Let's Encr
     sudo apt update
     sudo apt install -y devscripts debhelper build-essential
 
-### Runtime (sistema)
+### Runtime (automático)
 
-As dependências de runtime (**nginx**, **certbot**, **python3-certbot-nginx**) são instaladas automaticamente ao instalar o pacote `.deb`. Não é necessária instalação manual.
+As dependências de runtime (**nginx**, **certbot**, **python3-certbot-nginx**) são instaladas automaticamente ao instalar o pacote `.deb`.
 
 - **nginx**: Servidor web e proxy reverso
 - **certbot**: Gerador e gerenciador de certificados SSL/TLS Let's Encrypt
@@ -19,23 +19,9 @@ As dependências de runtime (**nginx**, **certbot**, **python3-certbot-nginx**) 
 
 ## ⚡ Instalação
 
-### Instalar todas as dependências
-
-    make install-deps
-
-Ou separadamente:
-
-    # Apenas build
-    make install-deps-build
-
-    # Apenas runtime
-    make install-deps-runtime
-
 ### Build do pacote .deb
 
     make build
-
-O arquivo `.deb` ficará no diretório pai.
 
 ### Instalar o pacote
 
@@ -44,6 +30,19 @@ O arquivo `.deb` ficará no diretório pai.
 ### Build + instalação automática
 
     ./scripts/build-install.sh
+
+## 🔧 Pós-instalação
+
+Adicionar usuário ao grupo `launchinfra` (sem sudo):
+
+    sudo usermod -aG launchinfra NOME_DO_USUARIO
+
+O usuário precisa fazer logout/login.
+
+### Configurar email e domínio
+
+    launchinfra config --email seu@email.com
+    launchinfra config --domain exemplo.com.br
 
 ## 🎮 Comandos
 
@@ -89,19 +88,19 @@ Descrição
 
 `launchinfra --list` / `ls`
 
-Listar projetos
+Listar projetos do usuário (root vê todos)
 
 `launchinfra --info NOME`
 
-Detalhes do projeto
+Detalhes do projeto (domínio, porta, SSL, data)
 
 `launchinfra --disable NOME`
 
-Desativar (preserva config)
+Desativar projeto (preserva config)
 
 `launchinfra --restore NOME`
 
-Reativar projeto
+Reativar projeto desativado
 
 `launchinfra --renew NOME`
 
@@ -113,7 +112,7 @@ Remover projeto
 
 `launchinfra --remove NOME --backup`
 
-Remover com backup
+Remover com backup (.tar.gz)
 
 ### Utilitários
 
@@ -123,19 +122,19 @@ Descrição
 
 `launchinfra --list-ports` / `ports`
 
-Portas em uso
+Portas em uso no sistema
 
 `launchinfra --check-port PORTA`
 
-Verificar porta
+Verificar se porta está em uso
 
 `launchinfra --check-domain NOME`
 
-Verificar domínio
+Verificar se domínio está em uso
 
 `launchinfra --check-ssl`
 
-Status de todos SSLs
+Status de expiração de todos SSLs
 
 `launchinfra --version` / `-v`
 
@@ -153,19 +152,15 @@ Descrição
 
 `launchinfra config --email EMAIL`
 
-Definir email
+Definir email para certificados SSL
 
 `launchinfra config --domain DOMINIO`
 
 Definir domínio base
 
-`launchinfra config --system`
-
-Salvar em /etc
-
 `launchinfra config --show`
 
-Ver configuração
+Ver configuração atual
 
 ## 🧪 Exemplos
 
@@ -184,17 +179,40 @@ Ver configuração
     launchinfra blog
       → Valida nome
       → Verifica conflitos
-      → Cria /var/www/projetos/blog
+      → Cria /var/www/projetos/usuario/blog
       → Configura Nginx HTTP
       → Certbot --nginx → HTTPS
       → ✓ https://blog.exemplo.com
 
+## 👥 Multi-usuário
+
+Cada usuário gerencia apenas seus próprios projetos. Root tem acesso total.
+
+    /var/www/projetos/
+    ├── professor1/
+    │   └── blog/
+    ├── professor2/
+    │   └── site/
+
+    /etc/nginx/sites-available/
+    ├── professor1-blog
+    └── professor2-site
+
+Usuário sem grupo `launchinfra` não consegue usar o comando. Comando **sem sudo** para membros do grupo.
+
+## 🛡️ Segurança
+
+- Helper privilegiado em `/usr/local/bin/launchinfra-helper`
+- Sudoers permite apenas comandos específicos sem senha
+- Grupo `launchinfra` isola permissões
+- Usuário só remove/desativa seus próprios projetos
+
 ## 📋 Versionamento
 
     # Manual
-    ./scripts/bump-version.sh 2.0-6 "Descrição das mudanças"
+    ./scripts/bump-version.sh 2.0.6 "Descrição"
 
-    # Automático (detecta feat/fix dos commits)
+    # Automático (detecta feat/fix)
     ./scripts/release-auto.sh
 
     # Build + instala
@@ -202,18 +220,29 @@ Ver configuração
 
 ## 🤖 CI/CD
 
-Push na `main` com commits `feat:` ou `fix:` dispara release automático no GitHub Actions, gerando tag, release e `.deb` anexado.
+Push na `main` com commits `feat:` ou `fix:` dispara release automático no GitHub Actions, gerando tag, release e `.deb`.
 
 ## 📁 Estrutura
 
     src/
-    ├── launchinfra.sh          # Bootstrap
+    ├── launchinfra.sh
     └── lib/
-        ├── cli.sh              # Dispatch de comandos
-        ├── config.sh           # Configuração
-        ├── logging.sh          # Cores e log
-        ├── nginx_project.sh    # CRUD de projetos
-        └── utils.sh            # Utilitários
+        ├── cli.sh
+        ├── config.sh
+        ├── logging.sh
+        ├── nginx_project.sh
+        └── utils.sh
+    debian/
+    ├── control
+    ├── postinst
+    ├── postrm
+    ├── rules
+    └── changelog
+    scripts/
+    ├── bump-version.sh
+    ├── release.sh
+    ├── release-auto.sh
+    └── build-install.sh
 
 ## 📄 Licença
 

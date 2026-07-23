@@ -91,5 +91,5 @@ log_to_file() {
     local msg="$1"
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    echo "[$timestamp] [$REAL_USER] $msg" | sudo tee -a "$LOG_FILE" >/dev/null 2>&1
+    echo "[$timestamp] [$REAL_USER] $msg" | run_helper tee-log "$LOG_FILE"
 }

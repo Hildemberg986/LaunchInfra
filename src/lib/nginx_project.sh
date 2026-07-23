@@ -9,7 +9,7 @@ create_project() {
         --no-ssl) NO_SSL="--no-ssl" ;;
         --force) FORCE="--force" ;;
         --dry-run) DRY_RUN="--dry-run" ;;
-        --domain|--dominio) ;;
+        --domain | --dominio) ;;
         --template) ;;
         *)
             if [ -z "$PROJETO" ]; then
@@ -34,7 +34,7 @@ create_project() {
     fi
 
     if [[ ! "$PROJETO" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        log_error "Nome de projeto inválido. Use apenas letras, números, hífen e underscore."
+        log_error "Nome de projeto inválido."
         return 1
     fi
 
@@ -46,14 +46,14 @@ create_project() {
     fi
 
     if [ "$NO_SSL" != "--no-ssl" ]; then
-        if [ -z "$EMAIL" ]; then
-            log_error "EMAIL não configurado. Execute: launchinfra config --email seu@email.com"
+        [ -z "$EMAIL" ] && {
+            log_error "EMAIL não configurado."
             return 1
-        fi
-        if [ -z "$CUSTOM_DOMAIN" ] && [ -z "$DOMINIO_BASE" ]; then
-            log_error "DOMINIO_BASE não configurado. Execute: launchinfra config --domain exemplo.com"
+        }
+        [ -z "$CUSTOM_DOMAIN" ] && [ -z "$DOMINIO_BASE" ] && {
+            log_error "DOMINIO_BASE não configurado."
             return 1
-        fi
+        }
     fi
 
     local DOMINIO
@@ -82,17 +82,19 @@ create_project() {
     fi
 
     if [ -z "$FORCE" ] && [ "$FORCE" != "--force" ]; then
-        if [ -f "$NGINX_AVAILABLE/$NGINX_NAME" ]; then
-            log_error "Projeto $PROJETO já existe!"; return 1
-        fi
+        [ -f "$NGINX_AVAILABLE/$NGINX_NAME" ] && {
+            log_error "Projeto $PROJETO já existe!"
+            return 1
+        }
         if [ "$NO_SSL" != "--no-ssl" ] && check_domain "$DOMINIO"; then
-            log_error "Domínio $DOMINIO já está em uso!"; return 1
+            log_error "Domínio $DOMINIO já está em uso!"
+            return 1
         fi
         if [ -n "$PORTA" ] && check_port "$PORTA"; then
             log_warning "Porta $PORTA está em uso!"
             list_ports
-            read -r -p "Deseja continuar mesmo assim? (s/N): " continue_port
-            if [[ ! $continue_port =~ ^[Ss]$ ]]; then return 1; fi
+            read -r -p "Deseja continuar? (s/N): " continue_port
+            [[ ! $continue_port =~ ^[Ss]$ ]] && return 1
         fi
     fi
 
@@ -102,20 +104,15 @@ create_project() {
     run_helper mkdir "$REAL_USER" "$DIR"
 
     if [ -n "$TEMPLATE" ] && [ -d "$TEMPLATE" ]; then
-        sudo cp -r "$TEMPLATE"/* "$DIR/"
+        run_helper cp-template "$TEMPLATE" "$DIR"
     else
-        sudo tee "$DIR/index.html" >/dev/null <<HTML
-<!DOCTYPE html>
-<html lang="pt-br">
-<head><meta charset="utf-8"><title>$PROJETO</title></head>
-<body><h1>$PROJETO</h1><p>$REAL_USER @ LaunchInfra</p></body></html>
-HTML
+        echo "<!DOCTYPE html><html lang=\"pt-br\"><head><meta charset=\"utf-8\"><title>$PROJETO</title></head><body><h1>$PROJETO</h1><p>$REAL_USER @ LaunchInfra</p></body></html>" | run_helper tee-nginx "$DIR/index.html"
     fi
 
     run_helper chown-www "$REAL_USER" "$DIR"
 
     if [ -n "$PORTA" ]; then
-        sudo tee "$NGINX_AVAILABLE/$NGINX_NAME" >/dev/null <<NGINX
+        cat <<NGINX | run_helper tee-nginx "$NGINX_AVAILABLE/$NGINX_NAME"
 # Projeto: $PROJETO | Usuário: $REAL_USER
 server {
     listen 80;
@@ -130,7 +127,7 @@ server {
 }
 NGINX
     else
-        sudo tee "$NGINX_AVAILABLE/$NGINX_NAME" >/dev/null <<NGINX
+        cat <<NGINX | run_helper tee-nginx "$NGINX_AVAILABLE/$NGINX_NAME"
 # Projeto: $PROJETO | Usuário: $REAL_USER
 server {
     listen 80;
@@ -145,78 +142,53 @@ NGINX
     fi
 
     run_helper ln-nginx "$NGINX_AVAILABLE/$NGINX_NAME" "$NGINX_ENABLED/$NGINX_NAME"
-    if ! run_helper nginx-test; then
-        log_error "Erro na configuração do Nginx"
+    run_helper nginx-test || {
+        log_error "Erro no Nginx"
         run_helper nginx-test
         return 1
-    fi
+    }
     run_helper nginx-reload
     log_success "Nginx configurado com HTTP"
 
     if [ "$NO_SSL" != "--no-ssl" ]; then
         log_info "Obtendo certificado SSL para $DOMINIO..."
-        if run_helper certbot --nginx -d "$DOMINIO" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log"; then
-            log_success "Certificado SSL instalado com sucesso"
-        else
-            log_warning "Falha ao obter certificado SSL. O site continua funcionando em HTTP."
-            log_warning "Verifique: 1) Domínio $DOMINIO aponta para este servidor? 2) Porta 80 está acessível?"
-        fi
+        run_helper certbot --nginx -d "$DOMINIO" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log" &&
+            log_success "Certificado SSL instalado" ||
+            { log_warning "Falha SSL. Site em HTTP."; }
     else
         log_info "Projeto criado sem SSL (HTTP apenas)"
     fi
 
-    log_success "Projeto $PROJETO criado com sucesso!"
-    if [ "$NO_SSL" != "--no-ssl" ]; then
-        echo "  → https://$DOMINIO"
-    else
-        echo "  → http://$DOMINIO"
-    fi
+    log_success "Projeto $PROJETO criado!"
+    [ "$NO_SSL" != "--no-ssl" ] && echo "  → https://$DOMINIO" || echo "  → http://$DOMINIO"
 }
 
 remove_project() {
     local project=$1
-    local with_backup=""
-
-    if [ -z "$project" ]; then
+    [ -z "$project" ] && {
         log_error "Nome do projeto é obrigatório"
         return 1
-    fi
+    }
 
     local NGINX_NAME
-    if [ "$REAL_USER" = "root" ]; then
-        NGINX_NAME="$project"
-    else
-        NGINX_NAME="$REAL_USER-$project"
-    fi
+    [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
 
     if [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ]; then
         log_error "Projeto '$project' não encontrado ou não pertence a você"
         return 1
     fi
 
-    if [ "$2" = "--backup" ]; then
-        with_backup="1"
-    fi
+    [ "$2" = "--backup" ] && backup_project "$project"
 
     local domain="$project.$DOMINIO_BASE"
-
-    if [ -n "$with_backup" ]; then
-        backup_project "$project"
-    fi
-
     log_info "Removendo projeto: $project"
     run_helper rm-nginx "$NGINX_ENABLED/$NGINX_NAME" "$NGINX_AVAILABLE/$NGINX_NAME"
 
     read -r -p "Remover certificado SSL? (s/N): " remove_ssl
-    if [[ $remove_ssl =~ ^[Ss]$ ]]; then
-        run_helper certbot delete --cert-name "$domain" --quiet 2>/dev/null && log_success "Certificado removido" || log_warning "Certificado não encontrado"
-    fi
+    [[ $remove_ssl =~ ^[Ss]$ ]] && run_helper certbot delete --cert-name "$domain" --quiet 2>/dev/null
 
-    read -r -p "Remover arquivos do projeto em $USER_DIR/$project? (s/N): " remove_files
-    if [[ $remove_files =~ ^[Ss]$ ]]; then
-        sudo rm -rf "$USER_DIR/$project"
-        log_success "Arquivos removidos"
-    fi
+    read -r -p "Remover arquivos em $USER_DIR/$project? (s/N): " remove_files
+    [[ $remove_files =~ ^[Ss]$ ]] && run_helper rm-files "$USER_DIR/$project"
 
     run_helper nginx-test && run_helper nginx-reload
     log_success "Projeto $project removido"
@@ -224,57 +196,41 @@ remove_project() {
 
 disable_project() {
     local project=$1
-    if [ -z "$project" ]; then
+    [ -z "$project" ] && {
         log_error "Nome do projeto é obrigatório"
         return 1
-    fi
-
+    }
     local NGINX_NAME
-    if [ "$REAL_USER" = "root" ]; then
-        NGINX_NAME="$project"
-    else
-        NGINX_NAME="$REAL_USER-$project"
-    fi
-
-    if [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ]; then
-        log_error "Projeto '$project' não encontrado ou não pertence a você"
+    [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
+    [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ] && {
+        log_error "Não encontrado"
         return 1
-    fi
-
-    if [ ! -L "$NGINX_ENABLED/$NGINX_NAME" ]; then
-        log_warning "Projeto '$project' já está desativado"
+    }
+    [ ! -L "$NGINX_ENABLED/$NGINX_NAME" ] && {
+        log_warning "Já desativado"
         return 0
-    fi
-
+    }
     run_helper rm-nginx "$NGINX_ENABLED/$NGINX_NAME"
     run_helper nginx-test && run_helper nginx-reload
-    log_success "Projeto '$project' desativado (config preservada)"
+    log_success "Projeto '$project' desativado"
 }
 
 restore_project() {
     local project=$1
-    if [ -z "$project" ]; then
+    [ -z "$project" ] && {
         log_error "Nome do projeto é obrigatório"
         return 1
-    fi
-
+    }
     local NGINX_NAME
-    if [ "$REAL_USER" = "root" ]; then
-        NGINX_NAME="$project"
-    else
-        NGINX_NAME="$REAL_USER-$project"
-    fi
-
-    if [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ]; then
-        log_error "Projeto '$project' não encontrado ou não pertence a você"
+    [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
+    [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ] && {
+        log_error "Não encontrado"
         return 1
-    fi
-
-    if [ -L "$NGINX_ENABLED/$NGINX_NAME" ]; then
-        log_warning "Projeto '$project' já está ativo"
+    }
+    [ -L "$NGINX_ENABLED/$NGINX_NAME" ] && {
+        log_warning "Já ativo"
         return 0
-    fi
-
+    }
     run_helper ln-nginx "$NGINX_AVAILABLE/$NGINX_NAME" "$NGINX_ENABLED/$NGINX_NAME"
     run_helper nginx-test && run_helper nginx-reload
     log_success "Projeto '$project' restaurado"
@@ -282,37 +238,24 @@ restore_project() {
 
 renew_ssl() {
     local project=$1
-    if [ -z "$project" ]; then
+    [ -z "$project" ] && {
         log_error "Nome do projeto é obrigatório"
         return 1
-    fi
-
+    }
     local NGINX_NAME
-    if [ "$REAL_USER" = "root" ]; then
-        NGINX_NAME="$project"
-    else
-        NGINX_NAME="$REAL_USER-$project"
-    fi
-
+    [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
     local config_file="$NGINX_AVAILABLE/$NGINX_NAME"
-    if [ ! -f "$config_file" ]; then
-        log_error "Projeto '$project' não encontrado"
+    [ ! -f "$config_file" ] && {
+        log_error "Projeto não encontrado"
         return 1
-    fi
-
-    if ! grep -q "ssl_certificate" "$config_file" 2>/dev/null; then
-        log_warning "Projeto '$project' não tem SSL configurado"
+    }
+    grep -q "ssl_certificate" "$config_file" 2>/dev/null || {
+        log_warning "Sem SSL"
         return 1
-    fi
-
+    }
     local domain
     domain=$(grep -m1 "server_name" "$config_file" | awk '{print $2}' | tr -d ';')
-
     log_info "Renovando SSL para $domain..."
-    if run_helper certbot renew --cert-name "$domain" --quiet 2>/dev/null; then
-        log_success "SSL renovado com sucesso"
-    else
-        log_warning "Renovação falhou, tentando forçar..."
+    run_helper certbot renew --cert-name "$domain" --quiet 2>/dev/null && log_success "SSL renovado" ||
         run_helper certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log"
-    fi
 }

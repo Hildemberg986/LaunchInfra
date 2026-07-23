@@ -70,20 +70,14 @@ list_projects() {
 
 show_project_info() {
     local project=$1
-
     local NGINX_NAME
-    if [ "$REAL_USER" = "root" ]; then
-        NGINX_NAME="$project"
-    else
-        NGINX_NAME="$REAL_USER-$project"
-    fi
-
+    [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
     local config_file="$NGINX_AVAILABLE/$NGINX_NAME"
 
-    if [ ! -f "$config_file" ]; then
+    [ ! -f "$config_file" ] && {
         log_error "Projeto '$project' não encontrado"
         return 1
-    fi
+    }
 
     local domain port ssl enabled dir created ssl_expiry
     domain=$(grep -m1 "server_name" "$config_file" | awk '{print $2}' | tr -d ';')
@@ -97,7 +91,7 @@ show_project_info() {
     created=$(stat -c '%y' "$config_file" 2>/dev/null | cut -d. -f1)
     ssl_expiry="N/A"
     if [ "$ssl" = "Sim" ] && [ -n "$domain" ]; then
-        ssl_expiry=$(sudo openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+        ssl_expiry=$(echo | run_helper openssl-check "$domain" 2>/dev/null | cut -d= -f2)
         [ -z "$ssl_expiry" ] && ssl_expiry="Não foi possível verificar"
     fi
 
@@ -115,33 +109,23 @@ show_project_info() {
 check_all_ssl() {
     echo -e "\n${BLUE}=== Verificação de Certificados SSL ===${NC}"
     local found=0
-
-    if [ "$REAL_USER" = "root" ]; then
-        local pattern="$NGINX_AVAILABLE/*"
-    else
-        local pattern="$NGINX_AVAILABLE/$REAL_USER-*"
-    fi
+    [ "$REAL_USER" = "root" ] && local pattern="$NGINX_AVAILABLE/*" || local pattern="$NGINX_AVAILABLE/$REAL_USER-*"
 
     for config in $pattern; do
         [ -f "$config" ] || continue
         if grep -q "ssl_certificate" "$config" 2>/dev/null; then
             found=1
-            local project
+            local project domain
             project=$(basename "$config")
-            local domain
             domain=$(grep -m1 "server_name" "$config" | awk '{print $2}' | tr -d ';')
-
             if [ -n "$domain" ]; then
                 local expiry
-                expiry=$(sudo openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
+                expiry=$(echo | run_helper openssl-check "$domain" 2>/dev/null | cut -d= -f2)
                 if [ -n "$expiry" ]; then
-                    local expiry_epoch
+                    local expiry_epoch now_epoch days_left
                     expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null)
-                    local now_epoch
                     now_epoch=$(date +%s)
-                    local days_left
                     days_left=$(((expiry_epoch - now_epoch) / 86400))
-
                     if [ "$days_left" -lt 30 ]; then
                         echo -e "  ${RED}⚠ $project ($domain): $days_left dias restantes - RENOVE!${NC}"
                     else
@@ -159,24 +143,21 @@ check_all_ssl() {
 backup_project() {
     local project=$1
     local dir="$USER_DIR/$project"
-
-    if [ ! -d "$dir" ]; then
-        log_error "Diretório do projeto '$project' não encontrado"
+    [ ! -d "$dir" ] && {
+        log_error "Diretório não encontrado"
         return 1
-    fi
+    }
 
-    local backup_name
-    local backup_dir
+    local backup_name backup_dir
     backup_name="$project-$(date +%Y%m%d-%H%M%S).tar.gz"
     backup_dir="/tmp/launchinfra-backups"
     mkdir -p "$backup_dir"
 
     log_info "Criando backup de $project..."
-    if sudo tar czf "$backup_dir/$backup_name" -C "$USER_DIR" "$project" 2>/dev/null; then
-        sudo chown "$REAL_USER:$REAL_USER" "$backup_dir/$backup_name"
-        log_success "Backup salvo em: $backup_dir/$backup_name"
-    else
-        log_error "Falha ao criar backup"
-        return 1
-    fi
+    run_helper tar-backup "$backup_dir/$backup_name" "$USER_DIR" "$project" "$REAL_USER" &&
+        log_success "Backup salvo em: $backup_dir/$backup_name" ||
+        {
+            log_error "Falha ao criar backup"
+            return 1
+        }
 }
