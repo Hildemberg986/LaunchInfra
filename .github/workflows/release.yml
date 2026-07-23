@@ -57,7 +57,7 @@ jobs:
         run: |
           NEW="${{ steps.version.outputs.new }}"
           DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
-          sed -i "s/^VERSION=.*/VERSION=$NEW/" Makefile
+          sed -i "s/^VERSION *=.*/VERSION = $NEW/" Makefile
           TEMP=$(mktemp)
           printf "launchinfra (%s) unstable; urgency=medium\n\n  * Release automática v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" "$NEW" "$NEW" "$DATE" > "$TEMP"
           cat debian/changelog >> "$TEMP"
