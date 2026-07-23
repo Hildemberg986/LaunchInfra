@@ -34,7 +34,9 @@ LOG_FILE="${LOG_FILE:-/var/log/launchinfra.log}"
 CONFIG_DIR_SYSTEM="/etc/launchinfra"
 CONFIG_FILE_SYSTEM="$CONFIG_DIR_SYSTEM/launchinfra.conf"
 
+# shellcheck disable=SC2034
 NGINX_AVAILABLE="/etc/nginx/sites-available"
+# shellcheck disable=SC2034
 NGINX_ENABLED="/etc/nginx/sites-enabled"
 
 load_config() {
