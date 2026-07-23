@@ -23,7 +23,7 @@ get_version() {
 }
 
 show_version() {
-    echo "LaunchInfra v$(get_version)"
+    echo "LaunchInfra v2.1.0"
 }
 
 show_help() {
