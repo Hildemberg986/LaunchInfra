@@ -35,56 +35,74 @@ check_domain() {
 }
 
 list_projects() {
-    echo -e "\n=== Projetos existentes ==="
-    for config in "$NGINX_AVAILABLE"/*; do
-        if [ -f "$config" ]; then
+    if [ "$REAL_USER" = "root" ]; then
+        echo -e "\n=== Todos os projetos (root) ==="
+        local found=0
+        for config in "$NGINX_AVAILABLE"/*; do
+            [ -f "$config" ] || continue
+            found=1
             project_name=$(basename "$config")
             if [ -L "$NGINX_ENABLED/$project_name" ]; then
                 echo "  ✓ $project_name (ativo)"
             else
                 echo "  ○ $project_name (inativo)"
             fi
-        fi
-    done
+        done
+        [ "$found" -eq 0 ] && echo "  Nenhum projeto."
+    else
+        echo -e "\n=== Projetos de $REAL_USER ==="
+        local found=0
+        for config in "$NGINX_AVAILABLE/$REAL_USER-"*; do
+            [ -f "$config" ] || continue
+            found=1
+            local fullname
+            fullname=$(basename "$config")
+            local project="${fullname#$REAL_USER-}"
+            if [ -L "$NGINX_ENABLED/$fullname" ]; then
+                echo "  ✓ $project (ativo)"
+            else
+                echo "  ○ $project (inativo)"
+            fi
+        done
+        [ "$found" -eq 0 ] && echo "  Nenhum projeto."
+    fi
 }
 
-# Mostrar info detalhada de um projeto
 show_project_info() {
     local project=$1
-    local config_file="$NGINX_AVAILABLE/$project"
+
+    local NGINX_NAME
+    if [ "$REAL_USER" = "root" ]; then
+        NGINX_NAME="$project"
+    else
+        NGINX_NAME="$REAL_USER-$project"
+    fi
+
+    local config_file="$NGINX_AVAILABLE/$NGINX_NAME"
 
     if [ ! -f "$config_file" ]; then
         log_error "Projeto '$project' não encontrado"
         return 1
     fi
 
-    local domain
+    local domain port ssl enabled dir created ssl_expiry
     domain=$(grep -m1 "server_name" "$config_file" | awk '{print $2}' | tr -d ';')
-
-    local port
     port=$(grep -m1 "proxy_pass" "$config_file" | grep -oP '\d+' | tail -1)
-
-    local ssl="Não"
+    ssl="Não"
     grep -q "ssl_certificate" "$config_file" 2>/dev/null && ssl="Sim"
-
-    local enabled="Não"
-    [ -L "$NGINX_ENABLED/$project" ] && enabled="Sim"
-
-    local dir="$DIR_BASE/$project"
+    enabled="Não"
+    [ -L "$NGINX_ENABLED/$NGINX_NAME" ] && enabled="Sim"
+    dir="$USER_DIR/$project"
     [ ! -d "$dir" ] && dir="(não encontrado)"
-
-    # Data do arquivo de config
-    local created
     created=$(stat -c '%y' "$config_file" 2>/dev/null | cut -d. -f1)
-
-    # Expiração SSL
-    local ssl_expiry="N/A"
+    ssl_expiry="N/A"
     if [ "$ssl" = "Sim" ] && [ -n "$domain" ]; then
         ssl_expiry=$(sudo openssl s_client -servername "$domain" -connect "$domain:443" 2>/dev/null | openssl x509 -noout -enddate 2>/dev/null | cut -d= -f2)
         [ -z "$ssl_expiry" ] && ssl_expiry="Não foi possível verificar"
     fi
 
     echo -e "\n${BLUE}=== $project ===${NC}"
+    echo "  Dono:       $REAL_USER"
     echo "  Domínio:    ${domain:-N/A}"
     echo "  Porta:      ${port:-N/A (site estático)}"
     echo "  SSL:        $ssl"
@@ -94,12 +112,19 @@ show_project_info() {
     [ "$ssl" = "Sim" ] && echo "  SSL expira: $ssl_expiry"
 }
 
-# Verificar SSL de todos os projetos
 check_all_ssl() {
     echo -e "\n${BLUE}=== Verificação de Certificados SSL ===${NC}"
     local found=0
-    for config in "$NGINX_AVAILABLE"/*; do
-        if [ -f "$config" ] && grep -q "ssl_certificate" "$config" 2>/dev/null; then
+
+    if [ "$REAL_USER" = "root" ]; then
+        local pattern="$NGINX_AVAILABLE/*"
+    else
+        local pattern="$NGINX_AVAILABLE/$REAL_USER-*"
+    fi
+
+    for config in $pattern; do
+        [ -f "$config" ] || continue
+        if grep -q "ssl_certificate" "$config" 2>/dev/null; then
             found=1
             local project
             project=$(basename "$config")
@@ -131,10 +156,9 @@ check_all_ssl() {
     [ "$found" -eq 0 ] && echo "  Nenhum projeto com SSL encontrado."
 }
 
-# Backup de projeto
 backup_project() {
     local project=$1
-    local dir="$DIR_BASE/$project"
+    local dir="$USER_DIR/$project"
 
     if [ ! -d "$dir" ]; then
         log_error "Diretório do projeto '$project' não encontrado"
@@ -148,8 +172,8 @@ backup_project() {
     mkdir -p "$backup_dir"
 
     log_info "Criando backup de $project..."
-    if sudo tar czf "$backup_dir/$backup_name" -C "$DIR_BASE" "$project" 2>/dev/null; then
-        sudo chown "$USER:$USER" "$backup_dir/$backup_name"
+    if sudo tar czf "$backup_dir/$backup_name" -C "$USER_DIR" "$project" 2>/dev/null; then
+        sudo chown "$REAL_USER:$REAL_USER" "$backup_dir/$backup_name"
         log_success "Backup salvo em: $backup_dir/$backup_name"
     else
         log_error "Falha ao criar backup"

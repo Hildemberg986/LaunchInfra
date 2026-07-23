@@ -4,18 +4,13 @@
 create_project() {
     local PROJETO="" PORTA="" NO_SSL="" FORCE="" DRY_RUN="" CUSTOM_DOMAIN="" TEMPLATE=""
 
-    # Parse arguments
     for arg in "$@"; do
         case "$arg" in
         --no-ssl) NO_SSL="--no-ssl" ;;
         --force) FORCE="--force" ;;
         --dry-run) DRY_RUN="--dry-run" ;;
-        --domain | --dominio)
-            # próximo argumento é o domínio
-            ;;
-        --template)
-            # próximo argumento é o template
-            ;;
+        --domain | --dominio) ;;
+        --template) ;;
         *)
             if [ -z "$PROJETO" ]; then
                 PROJETO="$arg"
@@ -43,6 +38,14 @@ create_project() {
         return 1
     fi
 
+    # Prefixo do nginx: root usa nome puro, usuário usa usuario-projeto
+    local NGINX_NAME
+    if [ "$REAL_USER" = "root" ]; then
+        NGINX_NAME="$PROJETO"
+    else
+        NGINX_NAME="$REAL_USER-$PROJETO"
+    fi
+
     if [ "$NO_SSL" != "--no-ssl" ]; then
         if [ -z "$EMAIL" ]; then
             log_error "EMAIL não configurado. Execute: launchinfra config --email seu@email.com"
@@ -61,12 +64,14 @@ create_project() {
         DOMINIO="$PROJETO.$DOMINIO_BASE"
     fi
 
-    local DIR="$DIR_BASE/$PROJETO"
+    local DIR="$USER_DIR/$PROJETO"
 
     # Dry run
     if [ "$DRY_RUN" = "--dry-run" ]; then
         echo -e "\n${BLUE}=== DRY RUN ===${NC}"
+        echo "  Usuário:      $REAL_USER"
         echo "  Projeto:      $PROJETO"
+        echo "  Nginx name:   $NGINX_NAME"
         echo "  Domínio:      $DOMINIO"
         echo "  Porta:        ${PORTA:-N/A (site estático)}"
         echo "  SSL:          $([ "$NO_SSL" = "--no-ssl" ] && echo 'Não' || echo 'Sim')"
@@ -74,13 +79,13 @@ create_project() {
         echo "  Template:     ${TEMPLATE:-padrão}"
         echo "  Forçar:       $([ "$FORCE" = "--force" ] && echo 'Sim' || echo 'Não')"
         echo -e "${BLUE}================${NC}\n"
-        log_info "DRY RUN: $PROJETO ($DOMINIO) - nenhuma alteração aplicada"
+        log_info "DRY RUN: $REAL_USER/$PROJETO ($DOMINIO)"
         return 0
     fi
 
     # Verificações de conflito
     if [ -z "$FORCE" ] && [ "$FORCE" != "--force" ]; then
-        if [ -f "/etc/nginx/sites-available/$PROJETO" ]; then
+        if [ -f "$NGINX_AVAILABLE/$NGINX_NAME" ]; then
             log_error "Projeto $PROJETO já existe!"
             return 1
         fi
@@ -96,10 +101,12 @@ create_project() {
         fi
     fi
 
-    log_info "Criando projeto: $PROJETO ($DOMINIO)"
+    log_info "Criando projeto: $REAL_USER/$PROJETO ($DOMINIO)"
+
+    # Criar diretório do usuário se não existir
+    sudo mkdir -p "$USER_DIR"
     sudo mkdir -p "$DIR"
 
-    # Template customizado ou padrão
     if [ -n "$TEMPLATE" ] && [ -d "$TEMPLATE" ]; then
         sudo cp -r "$TEMPLATE"/* "$DIR/"
     else
@@ -107,14 +114,18 @@ create_project() {
 <!DOCTYPE html>
 <html lang="pt-br">
 <head><meta charset="utf-8"><title>$PROJETO</title></head>
-<body><h1>$PROJETO</h1><p>Powered by LaunchInfra</p></body></html>
+<body><h1>$PROJETO</h1><p>$REAL_USER @ LaunchInfra</p></body></html>
 HTML
     fi
-    sudo chown -R www-data:www-data "$DIR"
+
+    # Permissões: dono = usuário, grupo = www-data
+    sudo chown -R "$REAL_USER:www-data" "$DIR"
+    sudo chmod -R 755 "$DIR"
 
     # Configuração Nginx HTTP
     if [ -n "$PORTA" ]; then
-        sudo tee "/etc/nginx/sites-available/$PROJETO" >/dev/null <<NGINX
+        sudo tee "$NGINX_AVAILABLE/$NGINX_NAME" >/dev/null <<NGINX
+# Projeto: $PROJETO | Usuário: $REAL_USER
 server {
     listen 80;
     server_name $DOMINIO;
@@ -128,7 +139,8 @@ server {
 }
 NGINX
     else
-        sudo tee "/etc/nginx/sites-available/$PROJETO" >/dev/null <<NGINX
+        sudo tee "$NGINX_AVAILABLE/$NGINX_NAME" >/dev/null <<NGINX
+# Projeto: $PROJETO | Usuário: $REAL_USER
 server {
     listen 80;
     server_name $DOMINIO;
@@ -141,7 +153,7 @@ server {
 NGINX
     fi
 
-    sudo ln -sf "/etc/nginx/sites-available/$PROJETO" "/etc/nginx/sites-enabled/"
+    sudo ln -sf "$NGINX_AVAILABLE/$NGINX_NAME" "$NGINX_ENABLED/$NGINX_NAME"
     if ! sudo nginx -t 2>/dev/null; then
         log_error "Erro na configuração do Nginx"
         sudo nginx -t
@@ -180,29 +192,40 @@ remove_project() {
         return 1
     fi
 
-    # Verifica flag --backup
+    local NGINX_NAME
+    if [ "$REAL_USER" = "root" ]; then
+        NGINX_NAME="$project"
+    else
+        NGINX_NAME="$REAL_USER-$project"
+    fi
+
+    # Verifica propriedade (só root pode remover qualquer)
+    if [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ]; then
+        log_error "Projeto '$project' não encontrado ou não pertence a você"
+        return 1
+    fi
+
     if [ "$2" = "--backup" ]; then
         with_backup="1"
     fi
 
     local domain="$project.$DOMINIO_BASE"
 
-    # Backup antes de remover
     if [ -n "$with_backup" ]; then
         backup_project "$project"
     fi
 
     log_info "Removendo projeto: $project"
-    sudo rm -f "/etc/nginx/sites-enabled/$project" "/etc/nginx/sites-available/$project"
+    sudo rm -f "$NGINX_ENABLED/$NGINX_NAME" "$NGINX_AVAILABLE/$NGINX_NAME"
 
     read -r -p "Remover certificado SSL? (s/N): " remove_ssl
     if [[ $remove_ssl =~ ^[Ss]$ ]]; then
         sudo certbot delete --cert-name "$domain" --quiet 2>/dev/null && log_success "Certificado removido" || log_warning "Certificado não encontrado"
     fi
 
-    read -r -p "Remover arquivos do projeto em $DIR_BASE/$project? (s/N): " remove_files
+    read -r -p "Remover arquivos do projeto em $USER_DIR/$project? (s/N): " remove_files
     if [[ $remove_files =~ ^[Ss]$ ]]; then
-        sudo rm -rf "$DIR_BASE/$project"
+        sudo rm -rf "$USER_DIR/$project"
         log_success "Arquivos removidos"
     fi
 
@@ -210,7 +233,6 @@ remove_project() {
     log_success "Projeto $project removido"
 }
 
-# Desativar projeto (remove symlink apenas)
 disable_project() {
     local project=$1
     if [ -z "$project" ]; then
@@ -218,17 +240,28 @@ disable_project() {
         return 1
     fi
 
-    if [ ! -L "$NGINX_ENABLED/$project" ]; then
+    local NGINX_NAME
+    if [ "$REAL_USER" = "root" ]; then
+        NGINX_NAME="$project"
+    else
+        NGINX_NAME="$REAL_USER-$project"
+    fi
+
+    if [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ]; then
+        log_error "Projeto '$project' não encontrado ou não pertence a você"
+        return 1
+    fi
+
+    if [ ! -L "$NGINX_ENABLED/$NGINX_NAME" ]; then
         log_warning "Projeto '$project' já está desativado"
         return 0
     fi
 
-    sudo rm -f "$NGINX_ENABLED/$project"
+    sudo rm -f "$NGINX_ENABLED/$NGINX_NAME"
     sudo nginx -t && sudo systemctl reload nginx
     log_success "Projeto '$project' desativado (config preservada)"
 }
 
-# Reativar projeto (recria symlink)
 restore_project() {
     local project=$1
     if [ -z "$project" ]; then
@@ -236,22 +269,28 @@ restore_project() {
         return 1
     fi
 
-    if [ ! -f "$NGINX_AVAILABLE/$project" ]; then
-        log_error "Config do projeto '$project' não encontrada em $NGINX_AVAILABLE"
+    local NGINX_NAME
+    if [ "$REAL_USER" = "root" ]; then
+        NGINX_NAME="$project"
+    else
+        NGINX_NAME="$REAL_USER-$project"
+    fi
+
+    if [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ]; then
+        log_error "Projeto '$project' não encontrado ou não pertence a você"
         return 1
     fi
 
-    if [ -L "$NGINX_ENABLED/$project" ]; then
+    if [ -L "$NGINX_ENABLED/$NGINX_NAME" ]; then
         log_warning "Projeto '$project' já está ativo"
         return 0
     fi
 
-    sudo ln -sf "$NGINX_AVAILABLE/$project" "$NGINX_ENABLED/$project"
+    sudo ln -sf "$NGINX_AVAILABLE/$NGINX_NAME" "$NGINX_ENABLED/$NGINX_NAME"
     sudo nginx -t && sudo systemctl reload nginx
     log_success "Projeto '$project' restaurado"
 }
 
-# Renovar SSL de um projeto
 renew_ssl() {
     local project=$1
     if [ -z "$project" ]; then
@@ -259,7 +298,14 @@ renew_ssl() {
         return 1
     fi
 
-    local config_file="$NGINX_AVAILABLE/$project"
+    local NGINX_NAME
+    if [ "$REAL_USER" = "root" ]; then
+        NGINX_NAME="$project"
+    else
+        NGINX_NAME="$REAL_USER-$project"
+    fi
+
+    local config_file="$NGINX_AVAILABLE/$NGINX_NAME"
     if [ ! -f "$config_file" ]; then
         log_error "Projeto '$project' não encontrado"
         return 1

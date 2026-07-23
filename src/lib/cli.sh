@@ -32,7 +32,7 @@ show_help() {
     echo ""
     echo -e "${YELLOW}USO:${NC}"
     echo "  launchinfra NOME [PORTA] [OPÇÕES]"
-    echo "  launchinfra config [--email EMAIL] [--domain DOMINIO_BASE] [--system]"
+    echo "  launchinfra config [--email EMAIL] [--domain DOMINIO_BASE]"
     echo "  launchinfra --version | --help"
     echo "  launchinfra --list | --list-ports"
     echo "  launchinfra --remove NOME [--backup]"
@@ -47,7 +47,7 @@ show_help() {
     echo -e "${YELLOW}OPÇÕES:${NC}"
     echo "  --version, -v        Mostra versão"
     echo "  --help, -h           Mostra esta ajuda"
-    echo "  --list               Lista todos os projetos"
+    echo "  --list               Lista seus projetos (root vê todos)"
     echo "  --list-ports         Mostra portas em uso"
     echo "  --info NOME          Mostra detalhes de um projeto"
     echo "  --remove NOME        Remove um projeto"
@@ -66,15 +66,16 @@ show_help() {
     echo "  config               Define EMAIL e DOMINIO_BASE"
     echo ""
     echo -e "${YELLOW}EXEMPLOS:${NC}"
-    echo "  launchinfra site-estatico"
+    echo "  launchinfra blog"
     echo "  launchinfra api 3000"
     echo "  launchinfra app --domain meusite.com.br 8080"
     echo "  launchinfra teste --no-ssl"
     echo "  launchinfra blog --template ~/meu-template/"
-    echo "  launchinfra prod 8080 --force"
     echo "  launchinfra novo --dry-run"
     echo "  launchinfra config --email dev@exemplo.com"
     echo "  launchinfra config --domain exemplo.com"
+    echo "  launchinfra ls"
+    echo "  launchinfra rm blog"
     echo ""
     echo -e "${YELLOW}LICENÇA:${NC}"
     echo "  Este software é de uso permitido, mas redistribuição é PROIBIDA"
@@ -92,7 +93,6 @@ dispatch_cli() {
     case "$1" in
     config)
         shift
-        TARGET="user"
         EMAIL_ARG=""
         DOMAIN_ARG=""
         while [ $# -gt 0 ]; do
@@ -105,16 +105,12 @@ dispatch_cli() {
                 DOMAIN_ARG="$2"
                 shift 2
                 ;;
-            --system)
-                TARGET="system"
-                shift
-                ;;
             --show)
                 show_config
                 return 0
                 ;;
             --help | -h)
-                echo "Uso: launchinfra config [--email EMAIL] [--domain DOMINIO_BASE] [--system] [--show]"
+                echo "Uso: launchinfra config [--email EMAIL] [--domain DOMINIO_BASE] [--show]"
                 return 0
                 ;;
             *)
@@ -125,13 +121,13 @@ dispatch_cli() {
         done
 
         if [ -n "$EMAIL_ARG" ]; then
-            save_config "EMAIL" "$EMAIL_ARG" "$TARGET" && echo "EMAIL salvo em $TARGET config"
+            save_config "EMAIL" "$EMAIL_ARG" && echo "EMAIL salvo"
         fi
         if [ -n "$DOMAIN_ARG" ]; then
-            save_config "DOMINIO_BASE" "$DOMAIN_ARG" "$TARGET" && echo "DOMINIO_BASE salvo em $TARGET config"
+            save_config "DOMINIO_BASE" "$DOMAIN_ARG" && echo "DOMINIO_BASE salvo"
         fi
         if [ -z "$EMAIL_ARG" ] && [ -z "$DOMAIN_ARG" ]; then
-            echo "Nada para salvar. Use --email ou --domain, ou --show para exibir."
+            echo "Use --email ou --domain, ou --show para exibir."
             return 1
         fi
         return 0
