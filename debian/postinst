@@ -35,6 +35,7 @@ case "$1" in
     cp-template) shift; /bin/cp -r "$1"/* "$2"/ ;;
     openssl-check) shift; echo | /usr/bin/openssl s_client -servername "$1" -connect "$1:443" 2>/dev/null | /usr/bin/openssl x509 -noout -enddate 2>/dev/null ;;
     tar-backup) shift; /bin/tar czf "$1" -C "$2" "$3"; /bin/chown "$4:$4" "$1" ;;
+    edit-nginx) shift; "${EDITOR:-nano}" "$1" ;;
     *) echo "Comando inválido: $1"; exit 1 ;;
 esac
 HELPER

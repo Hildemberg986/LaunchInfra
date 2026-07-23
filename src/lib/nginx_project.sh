@@ -1,5 +1,5 @@
 #!/bin/bash
-# nginx / project operations: create, remove, disable, restore, dry-run
+# nginx / project operations: create, remove, disable, restore, dry-run, edit
 
 create_project() {
     local PROJETO="" PORTA="" NO_SSL="" FORCE="" DRY_RUN="" CUSTOM_DOMAIN="" TEMPLATE=""
@@ -258,4 +258,35 @@ renew_ssl() {
     log_info "Renovando SSL para $domain..."
     run_helper certbot renew --cert-name "$domain" --quiet 2>/dev/null && log_success "SSL renovado" ||
         run_helper certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log"
+}
+
+edit_project() {
+    local project=$1
+    [ -z "$project" ] && {
+        log_error "Nome do projeto é obrigatório"
+        return 1
+    }
+
+    local NGINX_NAME
+    [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
+    local config_file="$NGINX_AVAILABLE/$NGINX_NAME"
+
+    [ ! -f "$config_file" ] && {
+        log_error "Projeto '$project' não encontrado"
+        return 1
+    }
+
+    if [ "$REAL_USER" != "root" ] && [ ! -f "$config_file" ]; then
+        log_error "Projeto '$project' não encontrado ou não pertence a você"
+        return 1
+    fi
+
+    run_helper edit-nginx "$config_file"
+
+    if run_helper nginx-test; then
+        run_helper nginx-reload
+        log_success "Configuração editada e Nginx recarregado"
+    else
+        log_warning "Erro na configuração. Corrija com: launchinfra --edit $project"
+    fi
 }

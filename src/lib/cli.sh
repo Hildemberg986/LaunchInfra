@@ -44,6 +44,7 @@ show_help() {
     echo "  launchinfra --disable NOME"
     echo "  launchinfra --restore NOME"
     echo "  launchinfra --info NOME"
+    echo "  launchinfra --edit NOME"
     echo "  launchinfra --renew NOME"
     echo "  launchinfra --check-ssl"
     echo "  launchinfra --check-port PORTA"
@@ -55,6 +56,7 @@ show_help() {
     echo "  --list               Lista seus projetos (root vê todos)"
     echo "  --list-ports         Mostra portas em uso"
     echo "  --info NOME          Mostra detalhes de um projeto"
+    echo "  --edit NOME          Editar configuração Nginx do projeto"
     echo "  --remove NOME        Remove um projeto"
     echo "  --remove NOME --backup  Remove com backup"
     echo "  --disable NOME       Desativa projeto (preserva config)"
@@ -81,6 +83,7 @@ show_help() {
     echo "  launchinfra config --domain exemplo.com"
     echo "  launchinfra ls"
     echo "  launchinfra rm blog"
+    echo "  launchinfra --edit blog"
     echo ""
     echo -e "${YELLOW}LICENÇA:${NC}"
     echo "  Este software é de uso permitido, mas redistribuição é PROIBIDA"
@@ -159,6 +162,10 @@ dispatch_cli() {
         ;;
     --info)
         show_project_info "$2"
+        return $?
+        ;;
+    --edit)
+        edit_project "$2"
         return $?
         ;;
     --remove | rm)
