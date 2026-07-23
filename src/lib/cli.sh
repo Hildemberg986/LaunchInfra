@@ -23,7 +23,7 @@ get_version() {
 }
 
 show_version() {
-    echo "LaunchInfra v2.2.1"
+    echo "LaunchInfra v2.3.0"
 }
 
 validate_email() {
