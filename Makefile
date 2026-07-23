@@ -1,5 +1,5 @@
-PACKAGE_NAME=launchinfra
-VERSION=2.0-5
+PACKAGE_NAME = launchinfra
+VERSION = 2.0-5
 
 # REGRA PADRÃO - não falha mesmo se arquivo não existir
 all:
@@ -43,5 +43,4 @@ install:
 clean:
 	rm -rf debian/.debhelper debian/debhelper-build-stamp debian/files debian/launchinfra debian/*.substvars debian/*.buildinfo debian/*.changes
 	rm -f ../$(PACKAGE_NAME)_*.deb
-	rm -f launchinfra
 	rm -f launchinfra
