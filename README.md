@@ -1,104 +1,220 @@
-# LaunchInfra
+# 🚀 LaunchInfra
 
 Ferramenta para criar e gerenciar sites e proxies Nginx com suporte a Let's Encrypt.
 
-## Dependências
+## 📦 Dependências
 
-### Empacotamento (desenvolvimento)
+### Build (desenvolvimento)
 
-Instale estas dependências para compilar o pacote .deb:
-
-```bash
-sudo apt update
-sudo apt install -y devscripts debhelper build-essential
-```
+    sudo apt update
+    sudo apt install -y devscripts debhelper build-essential
 
 ### Runtime (sistema)
 
-Após instalar o pacote `launchinfra`, você precisa instalar as seguintes dependências:
+As dependências de runtime (**nginx**, **certbot**, **python3-certbot-nginx**) são instaladas automaticamente ao instalar o pacote `.deb`. Não é necessária instalação manual.
 
-```bash
-sudo apt update
-sudo apt install -y nginx certbot python3-certbot-nginx
-```
-
-**O que cada uma faz:**
 - **nginx**: Servidor web e proxy reverso
 - **certbot**: Gerador e gerenciador de certificados SSL/TLS Let's Encrypt
 - **python3-certbot-nginx**: Plugin do certbot para integração com Nginx
 
-## Instalação
+## ⚡ Instalação
 
 ### Instalar todas as dependências
 
-```bash
-make install-deps
-```
+    make install-deps
 
-Ou instalar separadamente:
+Ou separadamente:
 
-```bash
-# Apenas dependências de compilação
-make install-deps-build
+    # Apenas build
+    make install-deps-build
 
-# Apenas dependências de runtime
-make install-deps-runtime
-```
+    # Apenas runtime
+    make install-deps-runtime
 
 ### Build do pacote .deb
 
-```bash
-make build
-```
+    make build
 
-O arquivo `.deb` ficará no diretório pai (ex.: `../launchinfra_2.0-5_all.deb`).
+O arquivo `.deb` ficará no diretório pai.
 
 ### Instalar o pacote
 
-```bash
-sudo dpkg -i ../launchinfra_2.0-5_all.deb
-```
+    sudo dpkg -i ../launchinfra_*.deb
 
-## Uso
+### Build + instalação automática
 
-```bash
-# Criar site estático com SSL
-launchinfra meu-site
+    ./scripts/build-install.sh
 
-# Criar proxy reverso com SSL (porta 3000)
-launchinfra api 3000
+## 🎮 Comandos
 
-# Criar site sem SSL (HTTP apenas)
-launchinfra dev-site --no-ssl
+### Criação
 
-# Forçar criação mesmo com conflitos
-launchinfra prod 8080 --force
+Comando
 
-# Configurar email e domínio
-launchinfra config --email seu@email.com --domain exemplo.com
+Descrição
 
-# Ver configuração atual
-launchinfra config --show
+`launchinfra NOME`
 
-# Listar projetos
-launchinfra --list
+Site estático com SSL
 
-# Remover projeto
-launchinfra --remove meu-site
+`launchinfra NOME PORTA`
 
-# Ver versão
-launchinfra --version
-```
+Proxy reverso com SSL
 
-## Versionamento
+`launchinfra NOME --no-ssl`
 
-Para atualizar a versão em todos os arquivos simultaneamente:
+Site HTTP apenas
 
-```bash
-./scripts/bump-version.sh 2.0-6 "Descrição das mudanças"
-make clean && make build
-```
+`launchinfra NOME --force`
 
-## Licença
+Forçar ignorando conflitos
 
-IMPORTANTE: Este software contém um cabeçalho de licença que PROÍBE redistribuição sem autorização. Antes de publicar este pacote em um repositório APT público, confirme que você tem permissão explícita do autor.
+`launchinfra NOME --dry-run`
+
+Simular sem aplicar
+
+`launchinfra NOME --domain DOMINIO`
+
+Domínio customizado
+
+`launchinfra NOME --template DIR`
+
+Template HTML customizado
+
+### Gerenciamento
+
+Comando
+
+Descrição
+
+`launchinfra --list` / `ls`
+
+Listar projetos
+
+`launchinfra --info NOME`
+
+Detalhes do projeto
+
+`launchinfra --disable NOME`
+
+Desativar (preserva config)
+
+`launchinfra --restore NOME`
+
+Reativar projeto
+
+`launchinfra --renew NOME`
+
+Renovar certificado SSL
+
+`launchinfra --remove NOME` / `rm`
+
+Remover projeto
+
+`launchinfra --remove NOME --backup`
+
+Remover com backup
+
+### Utilitários
+
+Comando
+
+Descrição
+
+`launchinfra --list-ports` / `ports`
+
+Portas em uso
+
+`launchinfra --check-port PORTA`
+
+Verificar porta
+
+`launchinfra --check-domain NOME`
+
+Verificar domínio
+
+`launchinfra --check-ssl`
+
+Status de todos SSLs
+
+`launchinfra --version` / `-v`
+
+Versão
+
+`launchinfra --help` / `-h`
+
+Ajuda
+
+### Configuração
+
+Comando
+
+Descrição
+
+`launchinfra config --email EMAIL`
+
+Definir email
+
+`launchinfra config --domain DOMINIO`
+
+Definir domínio base
+
+`launchinfra config --system`
+
+Salvar em /etc
+
+`launchinfra config --show`
+
+Ver configuração
+
+## 🧪 Exemplos
+
+    launchinfra blog
+    launchinfra api 3000
+    launchinfra app --domain meusite.com.br 8080
+    launchinfra teste --no-ssl
+    launchinfra blog --template ~/meu-template/
+    launchinfra novo --dry-run
+    launchinfra config --email dev@exemplo.com --domain exemplo.com
+    launchinfra ls
+    launchinfra rm blog
+
+## 🔄 Fluxo de criação
+
+    launchinfra blog
+      → Valida nome
+      → Verifica conflitos
+      → Cria /var/www/projetos/blog
+      → Configura Nginx HTTP
+      → Certbot --nginx → HTTPS
+      → ✓ https://blog.exemplo.com
+
+## 📋 Versionamento
+
+    # Manual
+    ./scripts/bump-version.sh 2.0-6 "Descrição das mudanças"
+
+    # Automático (detecta feat/fix dos commits)
+    ./scripts/release-auto.sh
+
+    # Build + instala
+    ./scripts/build-install.sh
+
+## 🤖 CI/CD
+
+Push na `main` com commits `feat:` ou `fix:` dispara release automático no GitHub Actions, gerando tag, release e `.deb` anexado.
+
+## 📁 Estrutura
+
+    src/
+    ├── launchinfra.sh          # Bootstrap
+    └── lib/
+        ├── cli.sh              # Dispatch de comandos
+        ├── config.sh           # Configuração
+        ├── logging.sh          # Cores e log
+        ├── nginx_project.sh    # CRUD de projetos
+        └── utils.sh            # Utilitários
+
+## 📄 Licença
+
+Uso permitido. **Redistribuição PROIBIDA** sem autorização expressa do autor.
