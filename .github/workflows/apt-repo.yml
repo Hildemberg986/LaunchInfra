@@ -22,7 +22,7 @@ jobs:
           mkdir -p new_repo/pool/main/l/launchinfra
           DEB_URL=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | grep "browser_download_url.*deb" | cut -d '"' -f 4)
           curl -L -o new_repo/pool/main/l/launchinfra/launchinfra.deb "$DEB_URL"
-          
+
       - name: Copiar repositório existente
         run: |
           if [ -d "repo/pool" ]; then
@@ -35,16 +35,17 @@ jobs:
           mkdir -p dists/stable/main/binary-amd64
           dpkg-scanpackages pool /dev/null > dists/stable/main/binary-amd64/Packages
           gzip -9 dists/stable/main/binary-amd64/Packages
+          RELEASE_DATE=$(date -Ru)
           cat > dists/stable/Release << EOF
-Origin: LaunchInfra
-Label: LaunchInfra
-Suite: stable
-Codename: stable
-Architectures: amd64 all
-Components: main
-Description: LaunchInfra - Gerenciador de Projetos Web com Nginx e Let's Encrypt
-Date: $(date -Ru)
-EOF
+          Origin: LaunchInfra
+          Label: LaunchInfra
+          Suite: stable
+          Codename: stable
+          Architectures: amd64 all
+          Components: main
+          Description: LaunchInfra - Gerenciador de Projetos Web com Nginx e Let's Encrypt
+          Date: $RELEASE_DATE
+          EOF
           apt-ftparchive release dists/stable >> dists/stable/Release
 
       - name: Deploy
