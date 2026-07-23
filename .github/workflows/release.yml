@@ -17,6 +17,11 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Importar GPG
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+
       - id: bump
         run: |
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
@@ -61,8 +66,15 @@ jobs:
 
       - if: steps.bump.outputs.skip != 'true'
         run: |
-          sudo apt update && sudo apt install -y devscripts debhelper build-essential
-          make clean && make build
+          sudo apt update && sudo apt install -y devscripts debhelper build-essential dput
+          make clean
+          dpkg-buildpackage -S -sa -us -uc
+          make build
+
+      - if: steps.bump.outputs.skip != 'true'
+        run: |
+          debsign -k BCE80ABE13055B48 ../launchinfra_${{ steps.version.outputs.new }}_source.changes
+          dput ppa:hildemberg986/launchinfra ../launchinfra_${{ steps.version.outputs.new }}_source.changes
 
       - if: steps.bump.outputs.skip != 'true'
         run: |
