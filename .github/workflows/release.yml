@@ -1,0 +1,80 @@
+name: 🚀 Release Automático
+
+on:
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: bump
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0-0")
+          COMMITS=$(git log "$LAST_TAG"..HEAD --pretty=format:"%s" 2>/dev/null)
+
+          if [ -z "$COMMITS" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          MAJOR=0; MINOR=0; PATCH=0
+          while IFS= read -r commit; do
+            [[ "$commit" == Merge* ]] && continue
+            if echo "$commit" | grep -qiE '^(feat|feature|add|adiciona)[^a-z]'; then MINOR=$((MINOR+1))
+            elif echo "$commit" | grep -qiE '^(fix|bug|corrige|hotfix|resolve)[^a-z]'; then PATCH=$((PATCH+1))
+            elif echo "$commit" | grep -qiE 'BREAKING CHANGE|breaking|major'; then MAJOR=$((MAJOR+1))
+            else PATCH=$((PATCH+1)); fi
+          done <<< "$COMMITS"
+
+          [ "$MAJOR" -gt 0 ] && BUMP="major" || { [ "$MINOR" -gt 0 ] && BUMP="minor" || BUMP="patch"; }
+          echo "bump=$BUMP" >> $GITHUB_OUTPUT
+          echo "skip=false" >> $GITHUB_OUTPUT
+
+      - if: steps.bump.outputs.skip != 'true'
+        id: version
+        run: |
+          CURRENT=$(grep '^VERSION' Makefile | awk '{print $3}')
+          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT" | cut -d. -f3 | cut -d- -f1)
+          REVISION=$(echo "$CURRENT" | cut -d- -f2)
+          case "${{ steps.bump.outputs.bump }}" in
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0; REVISION=1 ;;
+            minor) MINOR=$((MINOR+1)); PATCH=0; REVISION=1 ;;
+            patch) REVISION=$((REVISION+1)) ;;
+          esac
+          echo "new=${MAJOR}.${MINOR}.${PATCH}-${REVISION}" >> $GITHUB_OUTPUT
+
+      - if: steps.bump.outputs.skip != 'true'
+        run: |
+          NEW="${{ steps.version.outputs.new }}"
+          DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
+          sed -i "s/^VERSION=.*/VERSION=$NEW/" Makefile
+          TEMP=$(mktemp)
+          printf "launchinfra (%s) unstable; urgency=medium\n\n  * Release automática v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" "$NEW" "$NEW" "$DATE" > "$TEMP"
+          cat debian/changelog >> "$TEMP"
+          mv "$TEMP" debian/changelog
+          sed -i 's/echo "LaunchInfra v.*/echo "LaunchInfra v'"${NEW%%-*}"'"/' src/lib/cli.sh
+
+      - if: steps.bump.outputs.skip != 'true'
+        run: |
+          sudo apt update && sudo apt install -y devscripts debhelper build-essential
+          make clean && make build
+
+      - if: steps.bump.outputs.skip != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.new }}
+          name: v${{ steps.version.outputs.new }}
+          files: ../launchinfra_${{ steps.version.outputs.new }}_all.deb
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
