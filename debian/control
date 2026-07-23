@@ -8,7 +8,12 @@ Homepage: https://github.com/Hildemberg986/LaunchInfra
 
 Package: launchinfra
 Architecture: all
+Pre-Depends: ${misc:Pre-Depends}
 Depends: ${misc:Depends}, bash, nginx, certbot, python3-certbot-nginx
+Recommends: curl, wget
 Description: Gerenciador de Projetos Web - LaunchInfra
  LaunchInfra é uma ferramenta para criar e gerenciar sites e proxies
  Nginx com suporte automático a certificados Let's Encrypt.
+ .
+ Multi-usuário: cada usuário gerencia apenas seus próprios projetos.
+ Root tem acesso total a todos os projetos.

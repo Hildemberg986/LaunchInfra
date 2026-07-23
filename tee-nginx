@@ -1,0 +1,10 @@
+# Projeto: blog | Usuário: hildemberg
+server {
+    listen 80;
+    server_name blog.teste.com;
+    root /var/www/projetos/hildemberg/blog;
+    index index.html;
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}

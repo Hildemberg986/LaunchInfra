@@ -9,7 +9,7 @@ create_project() {
         --no-ssl) NO_SSL="--no-ssl" ;;
         --force) FORCE="--force" ;;
         --dry-run) DRY_RUN="--dry-run" ;;
-        --domain | --dominio) ;;
+        --domain|--dominio) ;;
         --template) ;;
         *)
             if [ -z "$PROJETO" ]; then
@@ -38,7 +38,6 @@ create_project() {
         return 1
     fi
 
-    # Prefixo do nginx: root usa nome puro, usuário usa usuario-projeto
     local NGINX_NAME
     if [ "$REAL_USER" = "root" ]; then
         NGINX_NAME="$PROJETO"
@@ -66,7 +65,6 @@ create_project() {
 
     local DIR="$USER_DIR/$PROJETO"
 
-    # Dry run
     if [ "$DRY_RUN" = "--dry-run" ]; then
         echo -e "\n${BLUE}=== DRY RUN ===${NC}"
         echo "  Usuário:      $REAL_USER"
@@ -83,15 +81,12 @@ create_project() {
         return 0
     fi
 
-    # Verificações de conflito
     if [ -z "$FORCE" ] && [ "$FORCE" != "--force" ]; then
         if [ -f "$NGINX_AVAILABLE/$NGINX_NAME" ]; then
-            log_error "Projeto $PROJETO já existe!"
-            return 1
+            log_error "Projeto $PROJETO já existe!"; return 1
         fi
         if [ "$NO_SSL" != "--no-ssl" ] && check_domain "$DOMINIO"; then
-            log_error "Domínio $DOMINIO já está em uso!"
-            return 1
+            log_error "Domínio $DOMINIO já está em uso!"; return 1
         fi
         if [ -n "$PORTA" ] && check_port "$PORTA"; then
             log_warning "Porta $PORTA está em uso!"
@@ -103,9 +98,8 @@ create_project() {
 
     log_info "Criando projeto: $REAL_USER/$PROJETO ($DOMINIO)"
 
-    # Criar diretório do usuário se não existir
-    sudo mkdir -p "$USER_DIR"
-    sudo mkdir -p "$DIR"
+    run_helper mkdir "$REAL_USER" "$USER_DIR"
+    run_helper mkdir "$REAL_USER" "$DIR"
 
     if [ -n "$TEMPLATE" ] && [ -d "$TEMPLATE" ]; then
         sudo cp -r "$TEMPLATE"/* "$DIR/"
@@ -118,11 +112,8 @@ create_project() {
 HTML
     fi
 
-    # Permissões: dono = usuário, grupo = www-data
-    sudo chown -R "$REAL_USER:www-data" "$DIR"
-    sudo chmod -R 755 "$DIR"
+    run_helper chown-www "$REAL_USER" "$DIR"
 
-    # Configuração Nginx HTTP
     if [ -n "$PORTA" ]; then
         sudo tee "$NGINX_AVAILABLE/$NGINX_NAME" >/dev/null <<NGINX
 # Projeto: $PROJETO | Usuário: $REAL_USER
@@ -153,19 +144,18 @@ server {
 NGINX
     fi
 
-    sudo ln -sf "$NGINX_AVAILABLE/$NGINX_NAME" "$NGINX_ENABLED/$NGINX_NAME"
-    if ! sudo nginx -t 2>/dev/null; then
+    run_helper ln-nginx "$NGINX_AVAILABLE/$NGINX_NAME" "$NGINX_ENABLED/$NGINX_NAME"
+    if ! run_helper nginx-test; then
         log_error "Erro na configuração do Nginx"
-        sudo nginx -t
+        run_helper nginx-test
         return 1
     fi
-    sudo systemctl reload nginx
+    run_helper nginx-reload
     log_success "Nginx configurado com HTTP"
 
-    # SSL
     if [ "$NO_SSL" != "--no-ssl" ]; then
         log_info "Obtendo certificado SSL para $DOMINIO..."
-        if sudo certbot --nginx -d "$DOMINIO" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log"; then
+        if run_helper certbot --nginx -d "$DOMINIO" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log"; then
             log_success "Certificado SSL instalado com sucesso"
         else
             log_warning "Falha ao obter certificado SSL. O site continua funcionando em HTTP."
@@ -199,7 +189,6 @@ remove_project() {
         NGINX_NAME="$REAL_USER-$project"
     fi
 
-    # Verifica propriedade (só root pode remover qualquer)
     if [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ]; then
         log_error "Projeto '$project' não encontrado ou não pertence a você"
         return 1
@@ -216,11 +205,11 @@ remove_project() {
     fi
 
     log_info "Removendo projeto: $project"
-    sudo rm -f "$NGINX_ENABLED/$NGINX_NAME" "$NGINX_AVAILABLE/$NGINX_NAME"
+    run_helper rm-nginx "$NGINX_ENABLED/$NGINX_NAME" "$NGINX_AVAILABLE/$NGINX_NAME"
 
     read -r -p "Remover certificado SSL? (s/N): " remove_ssl
     if [[ $remove_ssl =~ ^[Ss]$ ]]; then
-        sudo certbot delete --cert-name "$domain" --quiet 2>/dev/null && log_success "Certificado removido" || log_warning "Certificado não encontrado"
+        run_helper certbot delete --cert-name "$domain" --quiet 2>/dev/null && log_success "Certificado removido" || log_warning "Certificado não encontrado"
     fi
 
     read -r -p "Remover arquivos do projeto em $USER_DIR/$project? (s/N): " remove_files
@@ -229,7 +218,7 @@ remove_project() {
         log_success "Arquivos removidos"
     fi
 
-    sudo nginx -t && sudo systemctl reload nginx
+    run_helper nginx-test && run_helper nginx-reload
     log_success "Projeto $project removido"
 }
 
@@ -257,8 +246,8 @@ disable_project() {
         return 0
     fi
 
-    sudo rm -f "$NGINX_ENABLED/$NGINX_NAME"
-    sudo nginx -t && sudo systemctl reload nginx
+    run_helper rm-nginx "$NGINX_ENABLED/$NGINX_NAME"
+    run_helper nginx-test && run_helper nginx-reload
     log_success "Projeto '$project' desativado (config preservada)"
 }
 
@@ -286,8 +275,8 @@ restore_project() {
         return 0
     fi
 
-    sudo ln -sf "$NGINX_AVAILABLE/$NGINX_NAME" "$NGINX_ENABLED/$NGINX_NAME"
-    sudo nginx -t && sudo systemctl reload nginx
+    run_helper ln-nginx "$NGINX_AVAILABLE/$NGINX_NAME" "$NGINX_ENABLED/$NGINX_NAME"
+    run_helper nginx-test && run_helper nginx-reload
     log_success "Projeto '$project' restaurado"
 }
 
@@ -320,10 +309,10 @@ renew_ssl() {
     domain=$(grep -m1 "server_name" "$config_file" | awk '{print $2}' | tr -d ';')
 
     log_info "Renovando SSL para $domain..."
-    if sudo certbot renew --cert-name "$domain" --quiet 2>/dev/null; then
+    if run_helper certbot renew --cert-name "$domain" --quiet 2>/dev/null; then
         log_success "SSL renovado com sucesso"
     else
         log_warning "Renovação falhou, tentando forçar..."
-        sudo certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log"
+        run_helper certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log"
     fi
 }

@@ -39,6 +39,19 @@ NGINX_AVAILABLE="/etc/nginx/sites-available"
 # shellcheck disable=SC2034
 NGINX_ENABLED="/etc/nginx/sites-enabled"
 
+# Helper para comandos privilegiados
+LAUNCHINFRA_HELPER="/usr/local/bin/launchinfra-helper"
+
+run_helper() {
+    if [ -x "$LAUNCHINFRA_HELPER" ]; then
+        sudo "$LAUNCHINFRA_HELPER" "$@"
+    else
+        echo "❌ Helper não encontrado: $LAUNCHINFRA_HELPER"
+        echo "   Reinstale o LaunchInfra: sudo apt install --reinstall launchinfra"
+        return 1
+    fi
+}
+
 load_config() {
     if [ -r "$CONFIG_FILE_SYSTEM" ]; then
         # shellcheck disable=SC1090
@@ -74,7 +87,6 @@ show_config() {
     [ -r "$USER_CONFIG_FILE" ] && echo "User config:   $USER_CONFIG_FILE"
 }
 
-# Log de operações
 log_to_file() {
     local msg="$1"
     local timestamp

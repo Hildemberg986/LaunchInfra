@@ -1,0 +1,18 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+    purge)
+        echo "🧹 Removendo LaunchInfra..."
+        rm -rf /etc/launchinfra
+        rm -f /etc/sudoers.d/launchinfra
+        rm -f /usr/local/bin/launchinfra-helper
+        rm -f /var/log/launchinfra.log
+        echo "⚠️  /var/www/projetos preservado. Remova manualmente."
+        echo "⚠️  Grupo 'launchinfra' preservado. Remova com: sudo groupdel launchinfra"
+        ;;
+    remove)
+        echo "LaunchInfra removido. Configurações preservadas."
+        ;;
+esac
+exit 0
