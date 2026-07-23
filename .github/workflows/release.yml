@@ -17,7 +17,7 @@ jobs:
 
       - id: bump
         run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0-0")
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
           COMMITS=$(git log "$LAST_TAG"..HEAD --pretty=format:"%s" 2>/dev/null)
 
           if [ -z "$COMMITS" ]; then
@@ -44,14 +44,13 @@ jobs:
           CURRENT=$(grep '^VERSION' Makefile | awk '{print $3}')
           MAJOR=$(echo "$CURRENT" | cut -d. -f1)
           MINOR=$(echo "$CURRENT" | cut -d. -f2)
-          PATCH=$(echo "$CURRENT" | cut -d. -f3 | cut -d- -f1)
-          REVISION=$(echo "$CURRENT" | cut -d- -f2)
+          PATCH=$(echo "$CURRENT" | cut -d. -f3)
           case "${{ steps.bump.outputs.bump }}" in
-            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0; REVISION=1 ;;
-            minor) MINOR=$((MINOR+1)); PATCH=0; REVISION=1 ;;
-            patch) REVISION=$((REVISION+1)) ;;
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH+1)) ;;
           esac
-          echo "new=${MAJOR}.${MINOR}.${PATCH}-${REVISION}" >> $GITHUB_OUTPUT
+          echo "new=${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
 
       - if: steps.bump.outputs.skip != 'true'
         run: |
@@ -62,7 +61,7 @@ jobs:
           printf "launchinfra (%s) unstable; urgency=medium\n\n  * Release automática v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" "$NEW" "$NEW" "$DATE" > "$TEMP"
           cat debian/changelog >> "$TEMP"
           mv "$TEMP" debian/changelog
-          sed -i 's/echo "LaunchInfra v.*/echo "LaunchInfra v'"${NEW%%-*}"'"/' src/lib/cli.sh
+          sed -i 's/echo "LaunchInfra v.*/echo "LaunchInfra v'"$NEW"'"/' src/lib/cli.sh
 
       - if: steps.bump.outputs.skip != 'true'
         run: |
