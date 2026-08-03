@@ -153,9 +153,11 @@ NGINX
 
     if [ "$NO_SSL" != "--no-ssl" ]; then
         log_info "Obtendo certificado SSL para $DOMINIO..."
-        run_helper certbot --nginx -d "$DOMINIO" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log" &&
-            log_success "Certificado SSL instalado" ||
-            { log_warning "Falha SSL. Site em HTTP."; }
+        if run_helper certbot --nginx -d "$DOMINIO" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log"; then
+            log_success "Certificado SSL instalado"
+        else
+            log_warning "Falha SSL. Site em HTTP."
+        fi
     else
         log_info "Projeto criado sem SSL (HTTP apenas)"
     fi
@@ -273,8 +275,11 @@ renew_ssl() {
     local domain
     domain=$(grep -m1 "server_name" "$config_file" | awk '{print $2}' | tr -d ';')
     log_info "Renovando SSL para $domain..."
-    run_helper certbot renew --cert-name "$domain" --quiet 2>/dev/null && log_success "SSL renovado" ||
+    if run_helper certbot renew --cert-name "$domain" --quiet 2>/dev/null; then
+        log_success "SSL renovado"
+    else
         run_helper certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log"
+    fi
 }
 
 edit_project() {

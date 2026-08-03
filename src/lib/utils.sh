@@ -58,7 +58,7 @@ list_projects() {
             found=1
             local fullname
             fullname=$(basename "$config")
-            local project="${fullname#$REAL_USER-}"
+            local project="${fullname#"$REAL_USER"-}"
             if [ -L "$NGINX_ENABLED/$fullname" ]; then
                 echo "  ✓ $project (ativo)"
             else
@@ -115,7 +115,12 @@ show_project_info() {
 check_all_ssl() {
     echo -e "\n${BLUE}=== Verificação de Certificados SSL ===${NC}"
     local found=0
-    [ "$REAL_USER" = "root" ] && local pattern="$NGINX_AVAILABLE/*" || local pattern="$NGINX_AVAILABLE/$REAL_USER-*"
+    local pattern
+    if [ "$REAL_USER" = "root" ]; then
+        pattern="$NGINX_AVAILABLE/*"
+    else
+        pattern="$NGINX_AVAILABLE/$REAL_USER-*"
+    fi
 
     for config in $pattern; do
         [ -f "$config" ] || continue
@@ -164,10 +169,10 @@ backup_project() {
     mkdir -p "$backup_dir"
 
     log_info "Criando backup de $project..."
-    run_helper tar-backup "$backup_dir/$backup_name" "$USER_DIR" "$project" "$REAL_USER" &&
-        log_success "Backup salvo em: $backup_dir/$backup_name" ||
-        {
-            log_error "Falha ao criar backup"
-            return 1
-        }
+    if run_helper tar-backup "$backup_dir/$backup_name" "$USER_DIR" "$project" "$REAL_USER"; then
+        log_success "Backup salvo em: $backup_dir/$backup_name"
+    else
+        log_error "Falha ao criar backup"
+        return 1
+    fi
 }
