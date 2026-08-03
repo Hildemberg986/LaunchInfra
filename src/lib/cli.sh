@@ -1,4 +1,5 @@
 #!/bin/bash
+set -eo pipefail
 # CLI helpers and command dispatch
 
 get_version() {

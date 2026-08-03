@@ -1,4 +1,5 @@
 #!/bin/bash
+set -eo pipefail
 # configuration management
 
 # Detecta usuário real (funciona com sudo e root)

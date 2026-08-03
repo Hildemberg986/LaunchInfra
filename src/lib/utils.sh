@@ -1,4 +1,5 @@
 #!/bin/bash
+set -eo pipefail
 # utility functions: ports, domain checks, listing, info, backup, ssl check
 NGINX_AVAILABLE="/etc/nginx/sites-available"
 NGINX_ENABLED="/etc/nginx/sites-enabled"
@@ -70,6 +71,10 @@ list_projects() {
 
 show_project_info() {
     local project=$1
+    [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
+        log_error "Nome de projeto inválido"
+        return 1
+    }
     local NGINX_NAME
     [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
     local config_file="$NGINX_AVAILABLE/$NGINX_NAME"
@@ -143,6 +148,10 @@ check_all_ssl() {
 
 backup_project() {
     local project=$1
+    [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
+        log_error "Nome de projeto inválido"
+        return 1
+    }
     local dir="$USER_DIR/$project"
     [ ! -d "$dir" ] && {
         log_error "Diretório não encontrado"

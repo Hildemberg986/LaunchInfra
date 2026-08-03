@@ -1,4 +1,5 @@
 #!/bin/bash
+set -eo pipefail
 # nginx / project operations: create, remove, disable, restore, dry-run, edit
 
 create_project() {
@@ -33,8 +34,8 @@ create_project() {
         return 1
     fi
 
-    if [[ ! "$PROJETO" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-        log_error "Nome de projeto inválido."
+    if [[ ! "$PROJETO" =~ ^[a-zA-Z0-9_-]+$ ]] || [[ "$PROJETO" =~ \.\. ]]; then
+        log_error "Nome de projeto inválido. Use apenas letras, números, hífen e underscore."
         return 1
     fi
 
@@ -169,6 +170,10 @@ remove_project() {
         log_error "Nome do projeto é obrigatório"
         return 1
     }
+    [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
+        log_error "Nome de projeto inválido"
+        return 1
+    }
 
     local NGINX_NAME
     [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
@@ -200,6 +205,10 @@ disable_project() {
         log_error "Nome do projeto é obrigatório"
         return 1
     }
+    [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
+        log_error "Nome de projeto inválido"
+        return 1
+    }
     local NGINX_NAME
     [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
     [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ] && {
@@ -221,6 +230,10 @@ restore_project() {
         log_error "Nome do projeto é obrigatório"
         return 1
     }
+    [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
+        log_error "Nome de projeto inválido"
+        return 1
+    }
     local NGINX_NAME
     [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
     [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ] && {
@@ -240,6 +253,10 @@ renew_ssl() {
     local project=$1
     [ -z "$project" ] && {
         log_error "Nome do projeto é obrigatório"
+        return 1
+    }
+    [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
+        log_error "Nome de projeto inválido"
         return 1
     }
     local NGINX_NAME
@@ -264,6 +281,10 @@ edit_project() {
     local project=$1
     [ -z "$project" ] && {
         log_error "Nome do projeto é obrigatório"
+        return 1
+    }
+    [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
+        log_error "Nome de projeto inválido"
         return 1
     }
 

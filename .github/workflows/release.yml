@@ -55,6 +55,11 @@ jobs:
 
       - if: steps.bump.outputs.skip != 'true'
         run: |
+          sudo apt update && sudo apt install -y shellcheck
+          shellcheck src/*.sh src/lib/*.sh
+
+      - if: steps.bump.outputs.skip != 'true'
+        run: |
           NEW="${{ steps.version.outputs.new }}"
           DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
           sed -i "s/^VERSION *=.*/VERSION = $NEW/" Makefile
