@@ -30,12 +30,12 @@ create_project() {
     done
 
     if [ -z "$PROJETO" ]; then
-        log_error "Nome do projeto é obrigatório"
+        log_error "Nome do projeto e obrigatorio"
         return 1
     fi
 
     if [[ ! "$PROJETO" =~ ^[a-zA-Z0-9_-]+$ ]] || [[ "$PROJETO" =~ \.\. ]]; then
-        log_error "Nome de projeto inválido. Use apenas letras, números, hífen e underscore."
+        log_error "Nome de projeto invalido. Use apenas letras, numeros, hifen e underscore."
         return 1
     fi
 
@@ -48,11 +48,11 @@ create_project() {
 
     if [ "$NO_SSL" != "--no-ssl" ]; then
         [ -z "$EMAIL" ] && {
-            log_error "EMAIL não configurado."
+            log_error "EMAIL nao configurado."
             return 1
         }
         [ -z "$CUSTOM_DOMAIN" ] && [ -z "$DOMINIO_BASE" ] && {
-            log_error "DOMINIO_BASE não configurado."
+            log_error "DOMINIO_BASE nao configurado."
             return 1
         }
     fi
@@ -68,15 +68,15 @@ create_project() {
 
     if [ "$DRY_RUN" = "--dry-run" ]; then
         echo -e "\n${BLUE}=== DRY RUN ===${NC}"
-        echo "  Usuário:      $REAL_USER"
+        echo "  Usuario:      $REAL_USER"
         echo "  Projeto:      $PROJETO"
         echo "  Nginx name:   $NGINX_NAME"
-        echo "  Domínio:      $DOMINIO"
-        echo "  Porta:        ${PORTA:-N/A (site estático)}"
-        echo "  SSL:          $([ "$NO_SSL" = "--no-ssl" ] && echo 'Não' || echo 'Sim')"
-        echo "  Diretório:    $DIR"
-        echo "  Template:     ${TEMPLATE:-padrão}"
-        echo "  Forçar:       $([ "$FORCE" = "--force" ] && echo 'Sim' || echo 'Não')"
+        echo "  Dominio:      $DOMINIO"
+        echo "  Porta:        ${PORTA:-N/A (site estatico)}"
+        echo "  SSL:          $([ "$NO_SSL" = "--no-ssl" ] && echo 'Nao' || echo 'Sim')"
+        echo "  Diretorio:    $DIR"
+        echo "  Template:     ${TEMPLATE:-padrao}"
+        echo "  Forcar:       $([ "$FORCE" = "--force" ] && echo 'Sim' || echo 'Nao')"
         echo -e "${BLUE}================${NC}\n"
         log_info "DRY RUN: $REAL_USER/$PROJETO ($DOMINIO)"
         return 0
@@ -84,15 +84,15 @@ create_project() {
 
     if [ -z "$FORCE" ] && [ "$FORCE" != "--force" ]; then
         [ -f "$NGINX_AVAILABLE/$NGINX_NAME" ] && {
-            log_error "Projeto $PROJETO já existe!"
+            log_error "Projeto $PROJETO ja existe!"
             return 1
         }
         if [ "$NO_SSL" != "--no-ssl" ] && check_domain "$DOMINIO"; then
-            log_error "Domínio $DOMINIO já está em uso!"
+            log_error "Dominio $DOMINIO ja esta em uso!"
             return 1
         fi
         if [ -n "$PORTA" ] && check_port "$PORTA"; then
-            log_warning "Porta $PORTA está em uso!"
+            log_warning "Porta $PORTA esta em uso!"
             list_ports
             read -r -p "Deseja continuar? (s/N): " continue_port
             [[ ! $continue_port =~ ^[Ss]$ ]] && return 1
@@ -114,7 +114,7 @@ create_project() {
 
     if [ -n "$PORTA" ]; then
         cat <<NGINX | run_helper tee-nginx "$NGINX_AVAILABLE/$NGINX_NAME"
-# Projeto: $PROJETO | Usuário: $REAL_USER
+# Projeto: $PROJETO | Usuario: $REAL_USER
 server {
     listen 80;
     server_name $DOMINIO;
@@ -129,7 +129,7 @@ server {
 NGINX
     else
         cat <<NGINX | run_helper tee-nginx "$NGINX_AVAILABLE/$NGINX_NAME"
-# Projeto: $PROJETO | Usuário: $REAL_USER
+# Projeto: $PROJETO | Usuario: $REAL_USER
 server {
     listen 80;
     server_name $DOMINIO;
@@ -163,17 +163,17 @@ NGINX
     fi
 
     log_success "Projeto $PROJETO criado!"
-    [ "$NO_SSL" != "--no-ssl" ] && echo "  → https://$DOMINIO" || echo "  → http://$DOMINIO"
+    [ "$NO_SSL" != "--no-ssl" ] && echo "  -> https://$DOMINIO" || echo "  -> http://$DOMINIO"
 }
 
 remove_project() {
     local project=$1
     [ -z "$project" ] && {
-        log_error "Nome do projeto é obrigatório"
+        log_error "Nome do projeto e obrigatorio"
         return 1
     }
     [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
-        log_error "Nome de projeto inválido"
+        log_error "Nome de projeto invalido"
         return 1
     }
 
@@ -181,7 +181,7 @@ remove_project() {
     [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
 
     if [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ]; then
-        log_error "Projeto '$project' não encontrado ou não pertence a você"
+        log_error "Projeto '$project' nao encontrado ou nao pertence a voce"
         return 1
     fi
 
@@ -204,21 +204,21 @@ remove_project() {
 disable_project() {
     local project=$1
     [ -z "$project" ] && {
-        log_error "Nome do projeto é obrigatório"
+        log_error "Nome do projeto e obrigatorio"
         return 1
     }
     [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
-        log_error "Nome de projeto inválido"
+        log_error "Nome de projeto invalido"
         return 1
     }
     local NGINX_NAME
     [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
     [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ] && {
-        log_error "Não encontrado"
+        log_error "Nao encontrado"
         return 1
     }
     [ ! -L "$NGINX_ENABLED/$NGINX_NAME" ] && {
-        log_warning "Já desativado"
+        log_warning "Ja desativado"
         return 0
     }
     run_helper rm-nginx "$NGINX_ENABLED/$NGINX_NAME"
@@ -229,21 +229,21 @@ disable_project() {
 restore_project() {
     local project=$1
     [ -z "$project" ] && {
-        log_error "Nome do projeto é obrigatório"
+        log_error "Nome do projeto e obrigatorio"
         return 1
     }
     [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
-        log_error "Nome de projeto inválido"
+        log_error "Nome de projeto invalido"
         return 1
     }
     local NGINX_NAME
     [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
     [ "$REAL_USER" != "root" ] && [ ! -f "$NGINX_AVAILABLE/$NGINX_NAME" ] && {
-        log_error "Não encontrado"
+        log_error "Nao encontrado"
         return 1
     }
     [ -L "$NGINX_ENABLED/$NGINX_NAME" ] && {
-        log_warning "Já ativo"
+        log_warning "Ja ativo"
         return 0
     }
     run_helper ln-nginx "$NGINX_AVAILABLE/$NGINX_NAME" "$NGINX_ENABLED/$NGINX_NAME"
@@ -254,18 +254,18 @@ restore_project() {
 renew_ssl() {
     local project=$1
     [ -z "$project" ] && {
-        log_error "Nome do projeto é obrigatório"
+        log_error "Nome do projeto e obrigatorio"
         return 1
     }
     [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
-        log_error "Nome de projeto inválido"
+        log_error "Nome de projeto invalido"
         return 1
     }
     local NGINX_NAME
     [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
     local config_file="$NGINX_AVAILABLE/$NGINX_NAME"
     [ ! -f "$config_file" ] && {
-        log_error "Projeto não encontrado"
+        log_error "Projeto nao encontrado"
         return 1
     }
     grep -q "ssl_certificate" "$config_file" 2>/dev/null || {
@@ -285,11 +285,11 @@ renew_ssl() {
 edit_project() {
     local project=$1
     [ -z "$project" ] && {
-        log_error "Nome do projeto é obrigatório"
+        log_error "Nome do projeto e obrigatorio"
         return 1
     }
     [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
-        log_error "Nome de projeto inválido"
+        log_error "Nome de projeto invalido"
         return 1
     }
 
@@ -298,12 +298,12 @@ edit_project() {
     local config_file="$NGINX_AVAILABLE/$NGINX_NAME"
 
     [ ! -f "$config_file" ] && {
-        log_error "Projeto '$project' não encontrado"
+        log_error "Projeto '$project' nao encontrado"
         return 1
     }
 
     if [ "$REAL_USER" != "root" ] && [ ! -f "$config_file" ]; then
-        log_error "Projeto '$project' não encontrado ou não pertence a você"
+        log_error "Projeto '$project' nao encontrado ou nao pertence a voce"
         return 1
     fi
 
@@ -311,8 +311,48 @@ edit_project() {
 
     if run_helper nginx-test; then
         run_helper nginx-reload
-        log_success "Configuração editada e Nginx recarregado"
+        log_success "Configuracao editada e Nginx recarregado"
     else
-        log_warning "Erro na configuração. Corrija com: launchinfra --edit $project"
+        log_warning "Erro na configuracao. Corrija com: launchinfra --edit $project"
     fi
+}
+
+setup_nginx_default() {
+    if [ "$REAL_USER" != "root" ]; then
+        log_error "Apenas root pode configurar o servidor default."
+        return 1
+    fi
+
+    log_info "Configurando Nginx default para wildcard..."
+
+    run_helper tee-nginx /etc/nginx/sites-available/default <<'NGINX'
+# Default server - LaunchInfra
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    root /var/www/projetos;
+    index index.html index.htm;
+
+    server_name _;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+    }
+}
+NGINX
+
+    run_helper mkdir root /var/www/letsencrypt
+    run_helper nginx-test || {
+        log_error "Erro na configuracao do Nginx"
+        return 1
+    }
+    run_helper nginx-reload
+    log_success "Nginx default configurado para wildcard SSL."
+    echo "  Agora o servidor responde a qualquer dominio na porta 80."
+    echo "  Use: launchinfra NOME para criar projetos com SSL."
 }

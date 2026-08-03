@@ -39,6 +39,7 @@ show_help() {
     echo -e "${YELLOW}USO:${NC}"
     echo "  launchinfra NOME [PORTA] [OPCOES]"
     echo "  launchinfra config [--email EMAIL] [--domain DOMINIO_BASE]"
+    echo "  launchinfra setup-nginx"
     echo "  launchinfra --version | --help"
     echo "  launchinfra --list | --list-ports"
     echo "  launchinfra --remove NOME [--backup]"
@@ -54,6 +55,7 @@ show_help() {
     echo -e "${YELLOW}OPCOES:${NC}"
     echo "  --version, -v        Mostra versao"
     echo "  --help, -h           Mostra esta ajuda"
+    echo "  setup-nginx          Configura Nginx default para wildcard SSL"
     echo "  --list               Lista seus projetos (root ve todos)"
     echo "  --list-ports         Mostra portas em uso"
     echo "  --info NOME          Mostra detalhes de um projeto"
@@ -74,6 +76,7 @@ show_help() {
     echo "  config               Define EMAIL e DOMINIO_BASE"
     echo ""
     echo -e "${YELLOW}EXEMPLOS:${NC}"
+    echo "  sudo launchinfra setup-nginx"
     echo "  launchinfra blog"
     echo "  launchinfra api 3000"
     echo "  launchinfra app --domain meusite.com.br 8080"
@@ -152,6 +155,10 @@ dispatch_cli() {
     --help | -h)
         show_help
         return 0
+        ;;
+    setup-nginx)
+        setup_nginx_default
+        return $?
         ;;
     --list | ls)
         list_projects
