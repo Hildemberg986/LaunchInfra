@@ -1,4 +1,4 @@
-name: 🚀 Release Automático
+name: Release Automático
 
 on:
   push:
@@ -64,7 +64,7 @@ jobs:
           DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
           sed -i "s/^VERSION *=.*/VERSION = $NEW/" Makefile
           TEMP=$(mktemp)
-          printf "launchinfra (%s) noble; urgency=medium\n\n  * Release automática v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" "$NEW" "$NEW" "$DATE" > "$TEMP"
+          printf "launchinfra (%s) noble; urgency=medium\n\n  * Release automatica v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" "$NEW" "$NEW" "$DATE" > "$TEMP"
           cat debian/changelog >> "$TEMP"
           mv "$TEMP" debian/changelog
           sed -i 's/echo "LaunchInfra v.*/echo "LaunchInfra v'"$NEW"'"/' src/lib/cli.sh

@@ -1,10 +1,10 @@
-# 🚀 LaunchInfra
+# LaunchInfra
 
 > Ferramenta para criar e gerenciar sites e proxies Nginx com suporte a Let's Encrypt.
 
 ---
 
-## 📦 Dependências
+## Dependencias
 
 ### Build
 
@@ -14,9 +14,9 @@ sudo apt update && sudo apt install -y devscripts debhelper build-essential
 
 ### Runtime
 
-**nginx**, **certbot** e **python3-certbot-nginx** são instalados automaticamente via `Depends` do `.deb`.
+**nginx**, **certbot** e **python3-certbot-nginx** sao instalados automaticamente via `Depends` do `.deb`.
 
-| Pacote                | Função                              |
+| Pacote                | Funcao                              |
 | --------------------- | ----------------------------------- |
 | nginx                 | Servidor web e proxy reverso        |
 | certbot               | Gerenciador de certificados SSL/TLS |
@@ -24,14 +24,14 @@ sudo apt update && sudo apt install -y devscripts debhelper build-essential
 
 ---
 
-## ⚡ Instalação
+## Instalacao
 
 ```bash
-make build                      # Build do .deb
-sudo dpkg -i ../launchinfra_*.deb  # Instalar
+make build                              # Build do .deb
+sudo dpkg -i ../launchinfra_*.deb       # Instalar
 ```
 
-Ou use o script automático:
+Ou use o script automatico:
 
 ```bash
 ./scripts/build-install.sh
@@ -39,10 +39,10 @@ Ou use o script automático:
 
 ---
 
-## 🔧 Pós-instalação
+## Pos-instalacao
 
 ```bash
-# Adicionar usuário ao grupo (uma vez)
+# Adicionar usuario ao grupo (uma vez)
 sudo usermod -aG launchinfra USUARIO
 # Fazer logout/login
 
@@ -53,54 +53,55 @@ launchinfra config --domain exemplo.com.br
 
 ---
 
-## 🎮 Comandos
+## Comandos
 
-### 🏗️ Criação
+### Criacao
 
-| Comando                           | Descrição                  |
+| Comando                           | Descricao                  |
 | --------------------------------- | -------------------------- |
-| `launchinfra NOME`                | Site estático com SSL      |
+| `launchinfra NOME`                | Site estatico com SSL      |
 | `launchinfra NOME PORTA`          | Proxy reverso com SSL      |
 | `launchinfra NOME --no-ssl`       | Site HTTP apenas           |
-| `launchinfra NOME --force`        | Forçar ignorando conflitos |
+| `launchinfra NOME --force`        | Forcar ignorando conflitos |
 | `launchinfra NOME --dry-run`      | Simular sem aplicar        |
-| `launchinfra NOME --domain DOM`   | Domínio customizado        |
+| `launchinfra NOME --domain DOM`   | Dominio customizado        |
 | `launchinfra NOME --template DIR` | Template HTML customizado  |
 
-### 📋 Gerenciamento
+### Gerenciamento
 
-| Comando                              | Descrição                    |
+| Comando                              | Descricao                    |
 | ------------------------------------ | ---------------------------- |
 | `launchinfra --list` / `ls`          | Listar projetos              |
 | `launchinfra --info NOME`            | Detalhes do projeto          |
+| `launchinfra --edit NOME`            | Editar config Nginx          |
 | `launchinfra --disable NOME`         | Desativar (preserva config)  |
 | `launchinfra --restore NOME`         | Reativar projeto             |
 | `launchinfra --renew NOME`           | Renovar SSL                  |
 | `launchinfra --remove NOME` / `rm`   | Remover projeto              |
 | `launchinfra --remove NOME --backup` | Remover com backup (.tar.gz) |
 
-### 🔧 Utilitários
+### Utilitarios
 
-| Comando                              | Descrição         |
+| Comando                              | Descricao         |
 | ------------------------------------ | ----------------- |
 | `launchinfra --list-ports` / `ports` | Portas em uso     |
 | `launchinfra --check-port P`         | Verificar porta   |
-| `launchinfra --check-domain D`       | Verificar domínio |
-| `launchinfra --check-ssl`            | Expiração SSLs    |
-| `launchinfra --version` / `-v`       | Versão            |
+| `launchinfra --check-domain D`       | Verificar dominio |
+| `launchinfra --check-ssl`            | Expiracao SSLs    |
+| `launchinfra --version` / `-v`       | Versao            |
 | `launchinfra --help` / `-h`          | Ajuda             |
 
-### ⚙️ Configuração
+### Configuracao
 
-| Comando                         | Descrição        |
+| Comando                         | Descricao        |
 | ------------------------------- | ---------------- |
 | `launchinfra config --email E`  | Definir email    |
-| `launchinfra config --domain D` | Definir domínio  |
-| `launchinfra config --show`     | Ver configuração |
+| `launchinfra config --domain D` | Definir dominio  |
+| `launchinfra config --show`     | Ver configuracao |
 
 ---
 
-## 🧪 Exemplos
+## Exemplos
 
 ```bash
 launchinfra blog
@@ -116,92 +117,94 @@ launchinfra rm blog
 
 ---
 
-## 🔄 Fluxo
+## Fluxo
 
 ```
 launchinfra blog
-  → Valida nome
-  → Verifica conflitos
-  → Cria /var/www/projetos/usuario/blog
-  → Configura Nginx HTTP
-  → Certbot --nginx → HTTPS
-  → ✓ https://blog.exemplo.com
+  -> Valida nome
+  -> Verifica conflitos
+  -> Cria /var/www/projetos/usuario/blog
+  -> Configura Nginx HTTP
+  -> Certbot --nginx -> HTTPS
+  -> https://blog.exemplo.com
 ```
 
 ---
 
-## 👥 Multi-usuário
+## Multi-usuario
 
-Cada usuário gerencia apenas seus projetos. Root vê tudo.
+Cada usuario gerencia apenas seus projetos. Root ve tudo.
 
 ```
 /var/www/projetos/
-├── professor1/blog/
-├── professor2/site/
++-- professor1/blog/
++-- professor2/site/
 
 /etc/nginx/sites-available/
-├── professor1-blog
-└── professor2-site
++-- professor1-blog
++-- professor2-site
 ```
 
-> Usuários sem grupo `launchinfra` não executam o comando.
-> Membros do grupo usam **sem sudo**.
+Usuarios sem grupo `launchinfra` nao executam o comando.
+Membros do grupo usam **sem sudo**.
 
 ---
 
-## 🛡️ Segurança
+## Seguranca
 
-| Camada      | Descrição                           |
+| Camada      | Descricao                           |
 | ----------- | ----------------------------------- |
 | Helper      | `/usr/local/bin/launchinfra-helper` |
-| Sudoers     | Comandos específicos sem senha      |
-| Grupo       | `launchinfra` isola permissões      |
-| Propriedade | Usuário só gerencia seus projetos   |
+| Sudoers     | Comandos especificos sem senha      |
+| Grupo       | `launchinfra` isola permissoes      |
+| Propriedade | Usuario so gerencia seus projetos   |
 
 ---
 
-## 📋 Versionamento
+## Versionamento
 
 ```bash
-./scripts/bump-version.sh 2.0.6 "Descrição"   # Manual
-./scripts/release-auto.sh                      # Automático (feat/fix)
+./scripts/bump-version.sh 2.0.6 "Descricao"   # Manual
+./scripts/release-auto.sh                      # Automatico (feat/fix)
 ./scripts/build-install.sh                     # Build + instala
 ```
 
 ---
 
-## 🤖 CI/CD
+## CI/CD
 
-Push na `main` com `feat:` ou `fix:` → release automático no GitHub Actions (tag + release + .deb).
+Push na `main` com `feat:` ou `fix:` -> release automatico no GitHub Actions (tag + release + .deb).
 
 ---
 
-## 📁 Estrutura
+## Estrutura
 
 ```
 src/
-├── launchinfra.sh
-└── lib/
-    ├── cli.sh
-    ├── config.sh
-    ├── logging.sh
-    ├── nginx_project.sh
-    └── utils.sh
++-- launchinfra.sh
++-- lib/
+    +-- cli.sh
+    +-- config.sh
+    +-- logging.sh
+    +-- nginx_project.sh
+    +-- utils.sh
 debian/
-├── control
-├── postinst
-├── postrm
-├── rules
-└── changelog
++-- control
++-- postinst
++-- postrm
++-- rules
++-- changelog
 scripts/
-├── bump-version.sh
-├── release.sh
-├── release-auto.sh
-└── build-install.sh
++-- bump-version.sh
++-- release.sh
++-- release-auto.sh
++-- build-install.sh
 ```
 
 ---
 
-## 📄 Licença
+## Licenca
 
-Uso permitido. **Redistribuição PROIBIDA** sem autorização expressa do autor.
+Copyright (c) 2024 Hildemberg Eling de Araujo Lucena.
+
+Uso permitido. **Redistribuicao PROIBIDA** sem autorizacao expressa do autor.

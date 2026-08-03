@@ -25,6 +25,7 @@ get_version() {
 
 show_version() {
     echo "LaunchInfra v2.3.12"
+    echo "Copyright (c) 2024 Hildemberg Eling de Araujo Lucena"
 }
 
 validate_email() {
@@ -34,10 +35,9 @@ validate_email() {
 
 show_help() {
     echo -e "${BLUE}LaunchInfra - Gerenciador de Projetos Web${NC}"
-    echo -e "${BLUE}© 2024 Hildemberg Eling de Araújo Lucena${NC}"
     echo ""
     echo -e "${YELLOW}USO:${NC}"
-    echo "  launchinfra NOME [PORTA] [OPÇÕES]"
+    echo "  launchinfra NOME [PORTA] [OPCOES]"
     echo "  launchinfra config [--email EMAIL] [--domain DOMINIO_BASE]"
     echo "  launchinfra --version | --help"
     echo "  launchinfra --list | --list-ports"
@@ -51,26 +51,26 @@ show_help() {
     echo "  launchinfra --check-port PORTA"
     echo "  launchinfra --check-domain NOME"
     echo ""
-    echo -e "${YELLOW}OPÇÕES:${NC}"
-    echo "  --version, -v        Mostra versão"
+    echo -e "${YELLOW}OPCOES:${NC}"
+    echo "  --version, -v        Mostra versao"
     echo "  --help, -h           Mostra esta ajuda"
-    echo "  --list               Lista seus projetos (root vê todos)"
+    echo "  --list               Lista seus projetos (root ve todos)"
     echo "  --list-ports         Mostra portas em uso"
     echo "  --info NOME          Mostra detalhes de um projeto"
-    echo "  --edit NOME          Editar configuração Nginx do projeto"
+    echo "  --edit NOME          Editar configuracao Nginx do projeto"
     echo "  --remove NOME        Remove um projeto"
     echo "  --remove NOME --backup  Remove com backup"
     echo "  --disable NOME       Desativa projeto (preserva config)"
     echo "  --restore NOME       Reativa projeto desativado"
     echo "  --renew NOME         Renova certificado SSL"
-    echo "  --check-ssl          Verifica expiração de todos os SSLs"
-    echo "  --check-port PORTA   Verifica se porta está em uso"
-    echo "  --check-domain NOME  Verifica se domínio está em uso"
-    echo "  --dry-run            Simula criação sem aplicar"
+    echo "  --check-ssl          Verifica expiracao de todos os SSLs"
+    echo "  --check-port PORTA   Verifica se porta esta em uso"
+    echo "  --check-domain NOME  Verifica se dominio esta em uso"
+    echo "  --dry-run            Simula criacao sem aplicar"
     echo "  --no-ssl             Cria projeto sem SSL (HTTP)"
-    echo "  --force              Força criação mesmo com conflitos"
-    echo "  --domain DOMINIO     Domínio customizado (não usa DOMINIO_BASE)"
-    echo "  --template DIR       Diretório com template HTML"
+    echo "  --force              Forca criacao mesmo com conflitos"
+    echo "  --domain DOMINIO     Dominio customizado (nao usa DOMINIO_BASE)"
+    echo "  --template DIR       Diretorio com template HTML"
     echo "  config               Define EMAIL e DOMINIO_BASE"
     echo ""
     echo -e "${YELLOW}EXEMPLOS:${NC}"
@@ -86,9 +86,9 @@ show_help() {
     echo "  launchinfra rm blog"
     echo "  launchinfra --edit blog"
     echo ""
-    echo -e "${YELLOW}LICENÇA:${NC}"
-    echo "  Este software é de uso permitido, mas redistribuição é PROIBIDA"
-    echo "  sem autorização do autor. Veja \"launchinfra --version\""
+    echo -e "${YELLOW}LICENCA:${NC}"
+    echo "  Uso permitido. Redistribuicao PROIBIDA sem autorizacao do autor."
+    echo "  Veja \"launchinfra --version\" para mais informacoes."
 }
 
 dispatch_cli() {
@@ -109,7 +109,7 @@ dispatch_cli() {
             --email)
                 EMAIL_ARG="$2"
                 if ! validate_email "$EMAIL_ARG"; then
-                    echo "Email inválido: $EMAIL_ARG"
+                    echo "Email invalido: $EMAIL_ARG"
                     return 1
                 fi
                 shift 2
@@ -127,7 +127,7 @@ dispatch_cli() {
                 return 0
                 ;;
             *)
-                echo "Opção inválida: $1"
+                echo "Opcao invalida: $1"
                 return 1
                 ;;
             esac

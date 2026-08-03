@@ -3,7 +3,7 @@ set -e
 
 case "$1" in
 configure)
-    echo "🚀 Configurando LaunchInfra..."
+    echo "Configurando LaunchInfra..."
 
     if ! getent group launchinfra >/dev/null; then
         groupadd launchinfra
@@ -36,7 +36,7 @@ case "$1" in
     openssl-check) shift; echo | /usr/bin/openssl s_client -servername "$1" -connect "$1:443" 2>/dev/null | /usr/bin/openssl x509 -noout -enddate 2>/dev/null ;;
     tar-backup) shift; /bin/tar czf "$1" -C "$2" "$3"; /bin/chown "$4:$4" "$1" ;;
     edit-nginx) shift; "${EDITOR:-nano}" "$1" ;;
-    *) echo "Comando inválido: $1"; exit 1 ;;
+    *) echo "Comando invalido: $1"; exit 1 ;;
 esac
 HELPER
     chmod 755 /usr/local/bin/launchinfra-helper
@@ -44,11 +44,11 @@ HELPER
     echo "%launchinfra ALL=(root) NOPASSWD: /usr/local/bin/launchinfra-helper *" >/etc/sudoers.d/launchinfra
     chmod 440 /etc/sudoers.d/launchinfra
 
-    echo "✅ LaunchInfra configurado!"
+    echo "LaunchInfra configurado."
     echo ""
-    echo "📋 Para adicionar usuários:"
+    echo "Para adicionar usuarios:"
     echo "  sudo usermod -aG launchinfra NOME"
-    echo "  (usuário precisa fazer logout/login)"
+    echo "  (faca logout/login para aplicar)"
     ;;
 esac
 exit 0
