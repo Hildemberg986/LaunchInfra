@@ -4,7 +4,7 @@
 
 ---
 
-## Dependencias
+## Dependências
 
 ### Build
 
@@ -14,9 +14,9 @@ sudo apt update && sudo apt install -y devscripts debhelper build-essential
 
 ### Runtime
 
-**nginx**, **certbot** e **python3-certbot-nginx** sao instalados automaticamente via `Depends` do `.deb`.
+**nginx**, **certbot** e **python3-certbot-nginx** são instalados automaticamente via `Depends` do `.deb`.
 
-| Pacote                | Funcao                              |
+| Pacote                | Função                              |
 | --------------------- | ----------------------------------- |
 | nginx                 | Servidor web e proxy reverso        |
 | certbot               | Gerenciador de certificados SSL/TLS |
@@ -24,25 +24,25 @@ sudo apt update && sudo apt install -y devscripts debhelper build-essential
 
 ---
 
-## Instalacao
+## Instalação
 
 ```bash
 make build                              # Build do .deb
 sudo dpkg -i ../launchinfra_*.deb       # Instalar
 ```
 
-Ou use o script automatico:
+Ou use o script automático:
 
 ```bash
-./scripts/build-install.sh
+./install.sh
 ```
 
 ---
 
-## Pos-instalacao
+## Pós-instalação
 
 ```bash
-# Adicionar usuario ao grupo (uma vez)
+# Adicionar usuário ao grupo (uma vez)
 sudo usermod -aG launchinfra USUARIO
 # Fazer logout/login
 
@@ -55,49 +55,59 @@ launchinfra config --domain exemplo.com.br
 
 ## Comandos
 
-### Criacao
+### Criação
 
-| Comando                           | Descricao                  |
-| --------------------------------- | -------------------------- |
-| `launchinfra NOME`                | Site estatico com SSL      |
-| `launchinfra NOME PORTA`          | Proxy reverso com SSL      |
-| `launchinfra NOME --no-ssl`       | Site HTTP apenas           |
-| `launchinfra NOME --force`        | Forcar ignorando conflitos |
-| `launchinfra NOME --dry-run`      | Simular sem aplicar        |
-| `launchinfra NOME --domain DOM`   | Dominio customizado        |
-| `launchinfra NOME --template DIR` | Template HTML customizado  |
+| Comando                              | Descrição                                      |
+| ------------------------------------ | ---------------------------------------------- |
+| `launchinfra NOME`                   | Site estático com SSL                          |
+| `launchinfra NOME PORTA`             | Proxy reverso com SSL                          |
+| `launchinfra NOME --no-ssl`          | Site HTTP apenas (sem SSL)                     |
+| `launchinfra NOME --force`           | Forçar criação ignorando conflitos             |
+| `launchinfra NOME --dry-run`         | Simular criação sem aplicar alterações         |
+| `launchinfra NOME --domain DOM`      | Domínio customizado (substitui DOMINIO_BASE)   |
+| `launchinfra NOME --template DIR`    | Usar template HTML personalizado               |
+
+> **Proxy reverso**: a porta indicada deve ter o serviço rodando (ex: container Docker). O LaunchInfra configura apenas o proxy Nginx — não inicia o backend.
 
 ### Gerenciamento
 
-| Comando                              | Descricao                    |
+| Comando                                 | Descrição                          |
+| --------------------------------------- | ---------------------------------- |
+| `launchinfra --list` / `launchinfra ls` | Listar seus projetos (root: todos) |
+| `launchinfra --info NOME`               | Detalhes de um projeto             |
+| `launchinfra --edit NOME`               | Editar configuração Nginx          |
+| `launchinfra --disable NOME`            | Desativar (preserva configuração)  |
+| `launchinfra --restore NOME`            | Reativar projeto desativado        |
+| `launchinfra --renew NOME`              | Renovar certificado SSL            |
+| `launchinfra --remove NOME` / `launchinfra rm NOME` | Remover projeto         |
+| `launchinfra --remove NOME --backup`    | Remover com backup (.tar.gz)       |
+
+### Servidor
+
+| Comando                       | Descrição                                  |
+| ----------------------------- | ------------------------------------------ |
+| `sudo launchinfra setup-nginx` | Configurar Nginx default para wildcard SSL |
+
+> Requer root. Configure uma vez antes de criar projetos com SSL.
+
+### Utilitários
+
+| Comando                              | Descrição                    |
 | ------------------------------------ | ---------------------------- |
-| `launchinfra --list` / `ls`          | Listar projetos              |
-| `launchinfra --info NOME`            | Detalhes do projeto          |
-| `launchinfra --edit NOME`            | Editar config Nginx          |
-| `launchinfra --disable NOME`         | Desativar (preserva config)  |
-| `launchinfra --restore NOME`         | Reativar projeto             |
-| `launchinfra --renew NOME`           | Renovar SSL                  |
-| `launchinfra --remove NOME` / `rm`   | Remover projeto              |
-| `launchinfra --remove NOME --backup` | Remover com backup (.tar.gz) |
+| `launchinfra --list-ports` / `launchinfra ports` | Listar portas em uso |
+| `launchinfra --check-port PORTA`     | Verificar se porta está em uso |
+| `launchinfra --check-domain DOM`     | Verificar se domínio está em uso |
+| `launchinfra --check-ssl`            | Verificar expiração de todos os SSLs |
+| `launchinfra --version` / `launchinfra -v` | Mostrar versão       |
+| `launchinfra --help` / `launchinfra -h`    | Mostrar ajuda      |
 
-### Utilitarios
+### Configuração
 
-| Comando                              | Descricao         |
-| ------------------------------------ | ----------------- |
-| `launchinfra --list-ports` / `ports` | Portas em uso     |
-| `launchinfra --check-port P`         | Verificar porta   |
-| `launchinfra --check-domain D`       | Verificar dominio |
-| `launchinfra --check-ssl`            | Expiracao SSLs    |
-| `launchinfra --version` / `-v`       | Versao            |
-| `launchinfra --help` / `-h`          | Ajuda             |
-
-### Configuracao
-
-| Comando                         | Descricao        |
-| ------------------------------- | ---------------- |
-| `launchinfra config --email E`  | Definir email    |
-| `launchinfra config --domain D` | Definir dominio  |
-| `launchinfra config --show`     | Ver configuracao |
+| Comando                              | Descrição              |
+| ------------------------------------ | ---------------------- |
+| `launchinfra config --email EMAIL`   | Definir email de contato |
+| `launchinfra config --domain DOM`    | Definir domínio base    |
+| `launchinfra config --show`          | Exibir configuração     |
 
 ---
 
@@ -110,9 +120,11 @@ launchinfra app --domain meusite.com.br 8080
 launchinfra teste --no-ssl
 launchinfra blog --template ~/meu-template/
 launchinfra novo --dry-run
-launchinfra config --email dev@exemplo.com --domain exemplo.com
+launchinfra config --email dev@exemplo.com
+launchinfra config --domain exemplo.com
 launchinfra ls
 launchinfra rm blog
+launchinfra --renew blog
 ```
 
 ---
@@ -131,9 +143,9 @@ launchinfra blog
 
 ---
 
-## Multi-usuario
+## Multi-usuário
 
-Cada usuario gerencia apenas seus projetos. Root ve tudo.
+Cada usuário gerencia apenas seus projetos. Root vê tudo.
 
 ```
 /var/www/projetos/
@@ -145,35 +157,33 @@ Cada usuario gerencia apenas seus projetos. Root ve tudo.
 +-- professor2-site
 ```
 
-Usuarios sem grupo `launchinfra` nao executam o comando.
-Membros do grupo usam **sem sudo**.
+Usuários sem grupo `launchinfra` não executam o comando. Membros do grupo usam **sem sudo**.
 
 ---
 
-## Seguranca
+## Segurança
 
-| Camada      | Descricao                           |
+| Camada      | Descrição                           |
 | ----------- | ----------------------------------- |
 | Helper      | `/usr/local/bin/launchinfra-helper` |
-| Sudoers     | Comandos especificos sem senha      |
-| Grupo       | `launchinfra` isola permissoes      |
-| Propriedade | Usuario so gerencia seus projetos   |
+| Sudoers     | Comandos específicos sem senha      |
+| Grupo       | `launchinfra` isola permissões      |
+| Propriedade | Usuário só gerencia seus projetos   |
 
 ---
 
 ## Versionamento
 
 ```bash
-./scripts/bump-version.sh 2.0.6 "Descricao"   # Manual
-./scripts/release-auto.sh                      # Automatico (feat/fix)
-./scripts/build-install.sh                     # Build + instala
+./scripts/bump-version.sh 2.0.6 "Descrição"   # Atualiza versão + build + instala
+./scripts/release-auto.sh                      # Detecta bump via commits e publica
 ```
 
 ---
 
 ## CI/CD
 
-Push na `main` com `feat:` ou `fix:` -> release automatico no GitHub Actions (tag + release + .deb).
+Push na `main` com `feat:` ou `fix:` → release automático no GitHub Actions (tag + release + .deb).
 
 ---
 
@@ -181,30 +191,29 @@ Push na `main` com `feat:` ou `fix:` -> release automatico no GitHub Actions (ta
 
 ```
 src/
-+-- launchinfra.sh
-+-- lib/
-    +-- cli.sh
-    +-- config.sh
-    +-- logging.sh
-    +-- nginx_project.sh
-    +-- utils.sh
+├── launchinfra.sh          # Bootstrap (entry point)
+└── lib/
+    ├── cli.sh              # Dispatch de comandos e argumentos
+    ├── config.sh           # Configuração, usuário, helper
+    ├── nginx_project.sh    # Operações: criar, remover, editar, SSL
+    ├── utils.sh            # Portas, domínios, listagem, backup
+    └── logging.sh          # Funções de log colorido
 debian/
-+-- control
-+-- postinst
-+-- postrm
-+-- rules
-+-- changelog
+├── control                  # Metadados do pacote
+├── postinst                 # Setup do helper e sudoers
+├── postrm                   # Limpeza na remoção
+├── rules                    # Build rules
+└── changelog                # Changelog
 scripts/
-+-- bump-version.sh
-+-- release.sh
-+-- release-auto.sh
-+-- build-install.sh
+├── bump-version.sh          # Atualiza versão e builda
+├── release.sh               # Versionamento automático
+└── release-auto.sh          # Detecta bump via conventional commits
 ```
 
 ---
 
-## Licenca
+## Licença
 
 Copyright (c) 2024 Hildemberg Eling de Araujo Lucena.
 
-Uso permitido. **Redistribuicao PROIBIDA** sem autorizacao expressa do autor.
+Uso permitido. **Redistribuição PROIBIDA** sem autorização expressa do autor.

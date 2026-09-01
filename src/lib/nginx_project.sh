@@ -91,11 +91,10 @@ create_project() {
             log_error "Dominio $DOMINIO ja esta em uso!"
             return 1
         fi
+        # Porta em uso é esperado em proxy reverso (container rodando)
+        # Apenas avisa como warning, nao bloqueia
         if [ -n "$PORTA" ] && check_port "$PORTA"; then
-            log_warning "Porta $PORTA esta em uso!"
-            list_ports
-            read -r -p "Deseja continuar? (s/N): " continue_port
-            [[ ! $continue_port =~ ^[Ss]$ ]] && return 1
+            log_warning "Porta $PORTA esta em uso (será usada como backend no proxy reverso)"
         fi
     fi
 
@@ -152,11 +151,48 @@ NGINX
     log_success "Nginx configurado com HTTP"
 
     if [ "$NO_SSL" != "--no-ssl" ]; then
+        # Valida que o backend responde antes de solicitar SSL
+        # (necessário para o desafio HTTP-01 do Certbot)
+        if [ -n "$PORTA" ]; then
+            log_info "Validando backend na porta $PORTA..."
+            # Testa se o proxy_pass responde via Nginx recém-configurado
+            backend_test=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:$PORTA" 2>/dev/null || echo "000")
+            if [ "$backend_test" = "000" ] || [ "$backend_test" = "000" ]; then
+                log_warning "Backend na porta $PORTA nao responde. SSL sera solicitado, mas verifique se o serviço esta ativo."
+            elif [ "$backend_test" = "502" ] || [ "$backend_test" = "503" ]; then
+                log_warning "Backend na porta $PORTA retornou $backend_test. SSL sera solicitado, mas o servico pode nao estar pronto."
+            else
+                log_info "Backend respondendo HTTP $backend_test"
+            fi
+        fi
+
         log_info "Obtendo certificado SSL para $DOMINIO..."
-        if run_helper certbot --nginx -d "$DOMINIO" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log"; then
+
+        # Garante que o SSL seja aplicado apenas ao arquivo do projeto,
+        # e nao ao default_server (que pode conter wildcard)
+        # Temporariamente remove o default para forcar o Certbot a usar
+        # o bloco server do projeto
+        local default_restore=""
+        if [ -L "$NGINX_ENABLED/default" ]; then
+            default_restore="$NGINX_ENABLED/default"
+            run_helper rm-nginx "$NGINX_ENABLED/default"
+        fi
+
+        # Usa --preferred-challenges http para o desafio HTTP-01
+        cert_output=$(run_helper certbot --nginx -d "$DOMINIO" --non-interactive --agree-tos -m "$EMAIL" --redirect --preferred-challenges http 2>&1)
+        cert_status=$?
+        echo "$cert_output" | grep -v "^Saving debug log" || true
+
+        # Restaura o default
+        if [ -n "$default_restore" ]; then
+            run_helper ln-nginx "$NGINX_AVAILABLE/default" "$default_restore"
+        fi
+
+        if [ $cert_status -eq 0 ] && grep -q "Certificate deployed" <<< "$cert_output"; then
             log_success "Certificado SSL instalado"
         else
-            log_warning "Falha SSL. Site em HTTP."
+            log_warning "Falha ao obter certificado SSL. Site continua em HTTP."
+            log_info "Tente renovar manualmente: launchinfra --renew $PROJETO"
         fi
     else
         log_info "Projeto criado sem SSL (HTTP apenas)"
@@ -278,7 +314,25 @@ renew_ssl() {
     if run_helper certbot renew --cert-name "$domain" --quiet 2>/dev/null; then
         log_success "SSL renovado"
     else
-        run_helper certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$EMAIL" --redirect 2>&1 | grep -v "^Saving debug log"
+        # Remove default_server temporariamente para garantir que o Certbot
+        # atue no arquivo do projeto, nao no default
+        local default_restore=""
+        if [ -L "$NGINX_ENABLED/default" ]; then
+            default_restore="$NGINX_ENABLED/default"
+            run_helper rm-nginx "$NGINX_ENABLED/default"
+        fi
+
+        cert_output=$(run_helper certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$EMAIL" --redirect --preferred-challenges http 2>&1)
+        cert_status=$?
+        echo "$cert_output" | grep -v "^Saving debug log" || true
+
+        if [ -n "$default_restore" ]; then
+            run_helper ln-nginx "$NGINX_AVAILABLE/default" "$default_restore"
+        fi
+
+        if [ $cert_status -ne 0 ]; then
+            log_warning "Falha ao renovar SSL"
+        fi
     fi
 }
 
@@ -318,8 +372,8 @@ edit_project() {
 }
 
 setup_nginx_default() {
-    if [ "$REAL_USER" != "root" ]; then
-        log_error "Apenas root pode configurar o servidor default."
+    if [ "$(id -u)" != "0" ]; then
+        log_error "Execute como root: sudo launchinfra setup-nginx"
         return 1
     fi
 
