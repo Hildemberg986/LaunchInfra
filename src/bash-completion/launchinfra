@@ -1,0 +1,52 @@
+#!/bin/bash
+# Bash completion for launchinfra
+
+_launchinfra_completion() {
+    local cur prev cword
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD - 1]}"
+    cword=$COMP_CWORD
+
+    local commands="--version --help setup-nginx config --list --list-ports --info --edit --remove --disable --restore --renew --check-ssl --check-port --check-domain"
+
+    # Função para pegar projetos usando mapfile
+    get_projects() {
+        local projects=()
+        # Usar mapfile para ler a saída do comando com segurança
+        mapfile -t projects < <(/usr/bin/launchinfra --list 2>/dev/null | grep -oE '[✓○] [a-zA-Z0-9_-]+' | awk '{print $2}')
+        printf '%s ' "${projects[@]}"
+    }
+
+    case "$prev" in
+    --info | --edit | --remove | --disable | --restore | --renew)
+        COMPREPLY=($(compgen -W "$(get_projects)" -- "$cur"))
+        ;;
+    --domain)
+        COMPREPLY=($(compgen -W "exemplo.com" -- "$cur"))
+        ;;
+    --template)
+        COMPREPLY=($(compgen -d -- "$cur"))
+        ;;
+    --email)
+        COMPREPLY=($(compgen -W "admin@exemplo.com" -- "$cur"))
+        ;;
+    --check-port)
+        COMPREPLY=($(compgen -W "80 443 3000 5000 8000 8080 8443" -- "$cur"))
+        ;;
+    config)
+        COMPREPLY=($(compgen -W "--email --domain --show --help" -- "$cur"))
+        ;;
+    *)
+        if [[ "$cur" == -* ]]; then
+            COMPREPLY=($(compgen -W "$commands" -- "$cur"))
+        else
+            if [ $cword -eq 1 ]; then
+                COMPREPLY=($(compgen -W "$commands $(get_projects)" -- "$cur"))
+            fi
+        fi
+        ;;
+    esac
+}
+
+complete -o default -F _launchinfra_completion launchinfra

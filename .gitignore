@@ -155,3 +155,5 @@ ansible/inventory/local
 
 # Bats test artifacts
 bats-*/
+# Exceções - arquivos que NÃO devem ser ignorados
+!src/bash-completion/launchinfra
