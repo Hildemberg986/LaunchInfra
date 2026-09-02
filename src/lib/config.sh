@@ -93,5 +93,12 @@ log_to_file() {
     local msg="$1"
     local timestamp
     timestamp=$(date '+%Y-%m-%d %H:%M:%S')
-    printf '[%s] [%s] %s\n' "$timestamp" "$REAL_USER" "$msg" | run_helper tee-log "$LOG_FILE"
+    # Tenta escrever diretamente (se permissão) ou via helper
+    printf '[%s] [%s] %s\n' "$timestamp" "$REAL_USER" "$msg" | {
+        if [ -w "$LOG_FILE" ]; then
+            cat >> "$LOG_FILE"
+        else
+            run_helper tee-log "$LOG_FILE"
+        fi
+    } 2>/dev/null || true
 }

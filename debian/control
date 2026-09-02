@@ -2,14 +2,15 @@ Source: launchinfra
 Section: utils
 Priority: optional
 Maintainer: Hildemberg Eling <hildembergeling@gmail.com>
-Build-Depends: debhelper-compat (= 13)
+Build-Depends: debhelper-compat (= 13), bash-completion
 Standards-Version: 4.5.0
 Homepage: https://github.com/Hildemberg986/LaunchInfra
+XSBC-Original-Maintainer: Hildemberg Eling <hildembergeling@gmail.com>
 
 Package: launchinfra
 Architecture: all
 Pre-Depends: ${misc:Pre-Depends}
-Depends: ${misc:Depends}, bash, nginx, certbot, python3-certbot-nginx
+Depends: ${misc:Depends}, bash, nginx, certbot, python3-certbot-nginx, bash-completion
 Recommends: curl, wget
 Description: Gerenciador de Projetos Web - LaunchInfra
  LaunchInfra é uma ferramenta para criar e gerenciar sites e proxies
@@ -17,3 +18,8 @@ Description: Gerenciador de Projetos Web - LaunchInfra
  .
  Multi-usuário: cada usuário gerencia apenas seus próprios projetos.
  Root tem acesso total a todos os projetos.
+ .
+ Inclui bash completion automático e suporte a Ubuntu 18.04 até 24.04+,
+ além de variantes (Kubuntu, Xubuntu, Lubuntu, etc).
+ Supports: Ubuntu 18.04 (bionic) through 24.04 (noble) and later.
+Multi-Arch: foreign

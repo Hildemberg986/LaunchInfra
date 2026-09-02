@@ -1,10 +1,9 @@
 PACKAGE_NAME = launchinfra
-VERSION = 2.4.0
+VERSION = 2.4.1
 
 # REGRA PADRÃO - não falha mesmo se arquivo não existir
 all:
 	@echo "Construindo $(PACKAGE_NAME) versão $(VERSION)..."
-	# Verifica se existe script/fonte e prepara
 	@if [ -f launchinfra.sh ]; then chmod +x launchinfra.sh; fi
 	@if [ -f launchinfra.py ]; then chmod +x launchinfra.py; fi
 	@if [ -f launchinfra ]; then chmod +x launchinfra; fi
@@ -24,7 +23,7 @@ install-deps-build:
 install-deps-runtime:
 	@echo "Instalando dependências de runtime..."
 	sudo apt update
-	sudo apt install -y nginx certbot python3-certbot-nginx
+	sudo apt install -y nginx certbot python3-certbot-nginx bash-completion
 
 .PHONY: install-deps
 install-deps: install-deps-build install-deps-runtime
@@ -38,6 +37,7 @@ install:
 	install -D src/lib/utils.sh $(DESTDIR)/usr/share/launchinfra/lib/utils.sh
 	install -D src/lib/nginx_project.sh $(DESTDIR)/usr/share/launchinfra/lib/nginx_project.sh
 	install -D src/lib/cli.sh $(DESTDIR)/usr/share/launchinfra/lib/cli.sh
+	install -D src/bash-completion/launchinfra $(DESTDIR)/usr/share/bash-completion/completions/launchinfra
 
 .PHONY: clean
 clean:

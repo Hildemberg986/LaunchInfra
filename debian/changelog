@@ -1,124 +1,145 @@
-launchinfra (2.4.0) noble; urgency=medium
+launchinfra (2.4.1) stable; urgency=medium
+
+  * fix: helper sempre sobrescrito (SSL-to-default bug garantia)
+  * fix: --check-port/--check-domain validam argumento
+  * fix: remove_project le dominio real do arquivo nginx (suporta --domain custom)
+  * fix: backend validation testa via nginx (Host header)
+  * fix: condicao duplicada em backend_test
+  * fix: nginx-test nao e mais chamado duas vezes em falha
+  * fix: log_to_file tenta escrita direta antes de sudo
+  * fix: lsof fallback em list_ports
+  * fix: get_domain_from_config para dominio real
+  * fix: regex check_domain com boundary correto
+  * fix: get_version sem fallback silencioso
+  * feat: bash completion para comandos e projetos
+  * feat: --config --show para exibir configuracao
+  * feat: --restore --enable alias
+  * chore: helper detecta systemd/sysvinit/direct
+  * docs: README atualizado com secao completa
+
+ -- Hildemberg Eling <hildembergeling@gmail.com>  Tue, 01 Sep 2026 16:30:00 +0000
+
+launchinfra (2.4.0) stable; urgency=medium
 
   * Release automatica v2.4.0
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Mon, 03 Aug 2026 15:59:17 +0000
 
-launchinfra (2.3.13) noble; urgency=medium
+launchinfra (2.3.13) stable; urgency=medium
 
   * Release automatica v2.3.13
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Mon, 03 Aug 2026 15:51:06 +0000
 
-launchinfra (2.3.12) noble; urgency=medium
+launchinfra (2.3.12) stable; urgency=medium
 
   * Release automática v2.3.12
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Mon, 03 Aug 2026 15:34:17 +0000
 
-launchinfra (2.3.11) noble; urgency=medium
+launchinfra (2.3.11) stable; urgency=medium
 
   * Release automática v2.3.11
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 21:23:41 +0000
 
-launchinfra (2.3.10) noble; urgency=medium
+launchinfra (2.3.10) stable; urgency=medium
 
   * Correção para Ubuntu Noble
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 21:21:33 +0000
 
-launchinfra (2.3.9) noble; urgency=medium
+launchinfra (2.3.9) stable; urgency=medium
 
   * Release automática v2.3.9
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 21:02:05 +0000
 
-launchinfra (2.3.8) noble; urgency=medium
+launchinfra (2.3.8) stable; urgency=medium
 
   * Release automática v2.3.8
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 20:45:34 +0000
 
-launchinfra (2.3.7) noble; urgency=medium
+launchinfra (2.3.7) stable; urgency=medium
 
   * Release automática v2.3.7
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 20:41:24 +0000
 
-launchinfra (2.3.6) noble; urgency=medium
+launchinfra (2.3.6) stable; urgency=medium
 
   * Release automática v2.3.6
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 20:20:12 +0000
 
-launchinfra (2.3.5) noble; urgency=medium
+launchinfra (2.3.5) stable; urgency=medium
 
   * Release automática v2.3.5
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 20:16:37 +0000
 
-launchinfra (2.3.4) noble; urgency=medium
+launchinfra (2.3.4) stable; urgency=medium
 
   * Release automática v2.3.4
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 20:11:44 +0000
 
-launchinfra (2.3.3) noble; urgency=medium
+launchinfra (2.3.3) stable; urgency=medium
 
   * Release automática v2.3.3
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 20:04:19 +0000
 
-launchinfra (2.3.2) noble; urgency=medium
+launchinfra (2.3.2) stable; urgency=medium
 
   * Release automática v2.3.2
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 19:58:54 +0000
 
-launchinfra (2.3.1) noble; urgency=medium
+launchinfra (2.3.1) stable; urgency=medium
 
   * Release automática v2.3.1
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 19:54:33 +0000
 
-launchinfra (2.3.0) noble; urgency=medium
+launchinfra (2.3.0) stable; urgency=medium
 
   * Release automática v2.3.0
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 19:36:04 +0000
 
-launchinfra (2.2.1) noble; urgency=medium
+launchinfra (2.2.1) stable; urgency=medium
 
   * Release automática v2.2.1
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 19:25:07 +0000
 
-launchinfra (2.2.0) noble; urgency=medium
+launchinfra (2.2.0) stable; urgency=medium
 
   * Release automática v2.2.0
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 18:57:49 +0000
 
-launchinfra (2.1.0) noble; urgency=medium
+launchinfra (2.1.0) stable; urgency=medium
 
   * Release automática v2.1.0
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 18:41:26 +0000
 
-launchinfra (2.1.0) noble; urgency=medium
+launchinfra (2.1.0) stable; urgency=medium
 
   * Release automática v2.1.0
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 18:30:57 +0000
 
-launchinfra (2.1.0) noble; urgency=medium
+launchinfra (2.1.0) stable; urgency=medium
 
   * Release automática v2.1.0
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 23 Jul 2026 18:21:37 +0000
 
-launchinfra (2.0-5) noble; urgency=medium
+launchinfra (2.0-5) stable; urgency=medium
 
   * Adicionado suporte a --no-ssl para criar projetos sem certificado SSL (HTTP)
   * Adicionado suporte a --force para forçar criação mesmo com conflitos
@@ -128,7 +149,7 @@ launchinfra (2.0-5) noble; urgency=medium
 
  -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 14 May 2026 14:35:24 +0000
 
-launchinfra (2.0-1) noble; urgency=medium
+launchinfra (2.0-1) stable; urgency=medium
 
   * Empacote inicial (construído a partir do repositório upstream).
 

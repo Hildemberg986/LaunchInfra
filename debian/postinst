@@ -1,38 +1,96 @@
 #!/bin/bash
 set -e
 
+# Detecta qual gerenciador de servicos usar (systemd ou sysvinit)
+detect_service_manager() {
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+        echo "systemd"
+    elif command -v service >/dev/null 2>&1; then
+        echo "sysvinit"
+    else
+        echo "direct"
+    fi
+}
+
+reload_nginx() {
+    local svc_manager
+    svc_manager=$(detect_service_manager)
+    case "$svc_manager" in
+        systemd)
+            /bin/systemctl reload nginx 2>/dev/null || /bin/systemctl restart nginx 2>/dev/null
+            ;;
+        sysvinit)
+            /usr/sbin/service nginx reload 2>/dev/null || /usr/sbin/service nginx restart 2>/dev/null
+            ;;
+        direct)
+            # Fallback direto
+            /usr/sbin/nginx -s reload 2>/dev/null || /etc/init.d/nginx restart 2>/dev/null
+            ;;
+    esac
+}
+
 case "$1" in
 configure)
     echo "Configurando LaunchInfra..."
 
-    if ! getent group launchinfra >/dev/null; then
-        groupadd launchinfra
+    # Compatibilidade: criar grupo de forma segura
+    if ! getent group launchinfra >/dev/null 2>&1; then
+        groupadd launchinfra 2>/dev/null || echo "Aviso: Nao foi possivel criar grupo launchinfra"
     fi
 
     mkdir -p /var/www/projetos
     chown root:launchinfra /var/www/projetos
-    chmod 2775 /var/www/projetos
+    chmod 2775 /var/www/projetos 2>/dev/null || chmod 775 /var/www/projetos
 
     touch /var/log/launchinfra.log
     chown root:launchinfra /var/log/launchinfra.log
-    chmod 664 /var/log/launchinfra.log
+    chmod 664 /var/log/launchinfra.log 2>/dev/null || chmod 644 /var/log/launchinfra.log
 
     mkdir -p /etc/launchinfra
 
     cat >/usr/local/bin/launchinfra-helper <<'HELPER'
 #!/bin/bash
+# Compatibilidade: detectar gerenciador de servicos
+detect_service_manager() {
+    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+        echo "systemd"
+    elif command -v service >/dev/null 2>&1; then
+        echo "sysvinit"
+    else
+        echo "direct"
+    fi
+}
+
+reload_nginx_service() {
+    local svc_manager
+    svc_manager=$(detect_service_manager)
+    case "$svc_manager" in
+        systemd)
+            /bin/systemctl reload nginx 2>/dev/null || /bin/systemctl restart nginx 2>/dev/null
+            ;;
+        sysvinit)
+            /usr/sbin/service nginx reload 2>/dev/null || /usr/sbin/service nginx restart 2>/dev/null
+            ;;
+        direct)
+            /usr/sbin/nginx -s reload 2>/dev/null || /etc/init.d/nginx restart 2>/dev/null
+            ;;
+    esac
+}
+
 case "$1" in
     nginx-test) /usr/sbin/nginx -t ;;
-    nginx-reload) /bin/systemctl reload nginx ;;
+    nginx-reload) reload_nginx_service ;;
     certbot) shift; /usr/bin/certbot "$@" ;;
-    chown-www) shift; /bin/chown -R "$1:www-data" "$2"; /bin/chmod -R 755 "$2" ;;
-    mkdir) shift; /bin/mkdir -p "$@"; /bin/chown "$1:www-data" "$2"; /bin/chmod 755 "$2" ;;
+    chown-www) shift; /bin/chown -R "$1:www-data" "$2" 2>/dev/null || /bin/chown -R "$1:nogroup" "$2"; /bin/chmod -R 755 "$2" ;;
+    mkdir) shift; /bin/mkdir -p "$@"; /bin/chown "$1:www-data" "$2" 2>/dev/null || /bin/chown "$1:nogroup" "$2"; /bin/chmod 755 "$2" ;;
     rm-nginx) shift; /bin/rm -f "$@" ;;
     rm-files) shift; /bin/rm -rf "$@" ;;
     ln-nginx) shift; /bin/ln -sf "$1" "$2" ;;
     tee-nginx) shift; /usr/bin/tee "$@" >/dev/null ;;
     tee-log) shift; /usr/bin/tee -a "$@" >/dev/null ;;
     cp-template) shift; /bin/cp -r "$1"/* "$2"/ ;;
+    cat-nginx) shift; /bin/cat "$1" ;;
+    cp-backup) shift; /bin/cp "$1" "$2" ;;
     openssl-check) shift; echo | /usr/bin/openssl s_client -servername "$1" -connect "$1:443" 2>/dev/null | /usr/bin/openssl x509 -noout -enddate 2>/dev/null ;;
     tar-backup) shift; /bin/tar czf "$1" -C "$2" "$3"; /bin/chown "$4:$4" "$1" ;;
     edit-nginx) shift; "${EDITOR:-nano}" "$1" ;;
@@ -43,6 +101,63 @@ HELPER
 
     echo "%launchinfra ALL=(root) NOPASSWD: /usr/local/bin/launchinfra-helper *" >/etc/sudoers.d/launchinfra
     chmod 440 /etc/sudoers.d/launchinfra
+
+    # Instalar bash completion
+    mkdir -p /usr/share/bash-completion/completions
+    cat >/usr/share/bash-completion/completions/launchinfra <<'COMPLETION'
+_launchinfra_completion() {
+    local cur prev words cword
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    words=("${COMP_WORDS[@]}")
+    cword=$COMP_CWORD
+
+    local commands="--version --help setup-nginx config --list --list-ports --info --edit --remove --disable --restore --renew --check-ssl --check-port --check-domain"
+
+    case "$prev" in
+        --info|--edit|--remove|--disable|--restore|--renew)
+            # Completar com nomes de projetos
+            local projects=$(/usr/bin/launchinfra --list 2>/dev/null | grep -oE '[✓○] [a-zA-Z0-9_-]+' | awk '{print $2}')
+            COMPREPLY=($(compgen -W "$projects" -- "$cur"))
+            ;;
+        --domain)
+            # Sugestão genérica
+            COMPREPLY=($(compgen -W "exemplo.com" -- "$cur"))
+            ;;
+        --template)
+            # Completar com diretórios
+            COMPREPLY=($(compgen -d -- "$cur"))
+            ;;
+        --email)
+            # Completar com padrão de email
+            COMPREPLY=($(compgen -W "admin@exemplo.com" -- "$cur"))
+            ;;
+        --check-port)
+            # Portas comuns
+            COMPREPLY=($(compgen -W "80 443 3000 5000 8000 8080 8443" -- "$cur"))
+            ;;
+        config)
+            COMPREPLY=($(compgen -W "--email --domain --show --help" -- "$cur"))
+            ;;
+        *)
+            # Completar com comandos principais
+            if [[ "$cur" == -* ]]; then
+                COMPREPLY=($(compgen -W "$commands" -- "$cur"))
+            else
+                # Completar com nome de projeto se em primeiro argumento
+                if [ $cword -eq 1 ]; then
+                    local projects=$(/usr/bin/launchinfra --list 2>/dev/null | grep -oE '[✓○] [a-zA-Z0-9_-]+' | awk '{print $2}')
+                    COMPREPLY=($(compgen -W "$commands $projects" -- "$cur"))
+                fi
+            fi
+            ;;
+    esac
+}
+
+complete -o default -F _launchinfra_completion launchinfra
+COMPLETION
+    chmod 644 /usr/share/bash-completion/completions/launchinfra
 
     echo "LaunchInfra configurado."
     echo ""

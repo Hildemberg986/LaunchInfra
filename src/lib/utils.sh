@@ -4,35 +4,101 @@ set -eo pipefail
 NGINX_AVAILABLE="/etc/nginx/sites-available"
 NGINX_ENABLED="/etc/nginx/sites-enabled"
 
+# Detecta qual ferramenta usar para listar portas (compatibilidade)
+detect_port_scanner() {
+    if command -v ss >/dev/null 2>&1; then
+        echo "ss"
+    elif command -v netstat >/dev/null 2>&1; then
+        echo "netstat"
+    elif command -v lsof >/dev/null 2>&1; then
+        echo "lsof"
+    else
+        echo "none"
+    fi
+}
+
 check_port() {
     local port=$1
-    if ss -tuln | grep -q ":$port "; then
-        return 0
-    else
-        return 1
-    fi
+    local scanner
+    scanner=$(detect_port_scanner)
+    case "$scanner" in
+        ss)
+            if ss -tuln 2>/dev/null | grep -q ":$port "; then
+                return 0
+            fi
+            ;;
+        netstat)
+            if netstat -tuln 2>/dev/null | grep -q ":$port "; then
+                return 0
+            fi
+            ;;
+        lsof)
+            if lsof -i :"$port" 2>/dev/null | grep -q LISTEN; then
+                return 0
+            fi
+            ;;
+    esac
+    return 1
 }
 
 list_ports() {
     echo -e "\n=== Portas em uso no sistema ==="
-    ss -tuln | grep -E 'LISTEN' | awk '{print $5}' | rev | cut -d: -f1 | rev | sort -n | uniq | while read -r port; do
-        [ -z "$port" ] && continue
-        process=$(lsof -i :"$port" 2>/dev/null | grep LISTEN | head -1 | awk '{print $1}')
-        echo "  Porta $port: ${process:-desconhecido}"
-    done
+    local scanner
+    scanner=$(detect_port_scanner)
+    case "$scanner" in
+        ss)
+            ss -tuln 2>/dev/null | grep -E 'LISTEN' | awk '{print $5}' | rev | cut -d: -f1 | rev | sort -n | uniq | while read -r port; do
+                [ -z "$port" ] && continue
+                if command -v lsof >/dev/null 2>&1; then
+                    process=$(lsof -i :"$port" 2>/dev/null | grep LISTEN | head -1 | awk '{print $1}')
+                else
+                    process="desconhecido"
+                fi
+                echo "  Porta $port: ${process:-desconhecido}"
+            done
+            ;;
+        netstat)
+            netstat -tuln 2>/dev/null | grep -E 'LISTEN' | awk '{print $4}' | rev | cut -d: -f1 | rev | sort -n | uniq | while read -r port; do
+                [ -z "$port" ] && continue
+                if command -v lsof >/dev/null 2>&1; then
+                    process=$(lsof -i :"$port" 2>/dev/null | grep LISTEN | head -1 | awk '{print $1}')
+                else
+                    process="desconhecido"
+                fi
+                echo "  Porta $port: ${process:-desconhecido}"
+            done
+            ;;
+        lsof)
+            lsof -i -P -n 2>/dev/null | grep LISTEN | awk '{print $9}' | cut -d: -f2 | sort -n | uniq | while read -r port; do
+                [ -z "$port" ] && continue
+                process=$(lsof -i :"$port" 2>/dev/null | grep LISTEN | head -1 | awk '{print $1}')
+                echo "  Porta $port: ${process:-desconhecido}"
+            done
+            ;;
+        *)
+            echo "  Nenhuma ferramenta disponivel para escanear portas."
+            ;;
+    esac
 }
 
 check_domain() {
     local domain=$1
-    local escaped_domain
-    escaped_domain=$(printf '%s\n' "$domain" | sed 's/\./\\./g')
-    if [ -f "$NGINX_AVAILABLE/$domain" ] ||
-        grep -qr "server_name $escaped_domain\b" "$NGINX_AVAILABLE/" 2>/dev/null ||
-        grep -qr "server_name $escaped_domain\b" "$NGINX_ENABLED/" 2>/dev/null; then
+    [ -z "$domain" ] && return 1
+
+    # Verifica arquivo direto
+    [ -f "$NGINX_AVAILABLE/$domain" ] && return 0
+
+    # Busca server_name em todos os configs
+    # Usa grep com regex que pega o dominio como palavra inteira ou seguido de espaco/ponto-e-virgula
+    local base_domain
+    base_domain=$(printf '%s' "$domain" | sed 's/\./\\./g')
+    if grep -qr "server_name.*[[:space:]]${base_domain}\([[:space:]]\|;\|$\)" "$NGINX_AVAILABLE/" 2>/dev/null; then
         return 0
-    else
-        return 1
     fi
+    if grep -qr "server_name.*[[:space:]]${base_domain}\([[:space:]]\|;\|$\)" "$NGINX_ENABLED/" 2>/dev/null; then
+        return 0
+    fi
+    return 1
 }
 
 list_projects() {
@@ -72,7 +138,7 @@ list_projects() {
 show_project_info() {
     local project=$1
     [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
-        log_error "Nome de projeto inválido"
+        log_error "Nome de projeto invalido"
         return 1
     }
     local NGINX_NAME
@@ -80,40 +146,44 @@ show_project_info() {
     local config_file="$NGINX_AVAILABLE/$NGINX_NAME"
 
     [ ! -f "$config_file" ] && {
-        log_error "Projeto '$project' não encontrado"
+        log_error "Projeto '$project' nao encontrado"
         return 1
     }
 
     local domain port ssl enabled dir created ssl_expiry
     domain=$(grep -m1 "server_name" "$config_file" | awk '{print $2}' | tr -d ';')
     port=$(grep -m1 "proxy_pass" "$config_file" | grep -oE '[0-9]+' | tail -1)
-    ssl="Não"
+    ssl="Nao"
     grep -q "ssl_certificate" "$config_file" 2>/dev/null && ssl="Sim"
-    enabled="Não"
+    enabled="Nao"
     [ -L "$NGINX_ENABLED/$NGINX_NAME" ] && enabled="Sim"
     dir="$USER_DIR/$project"
-    [ ! -d "$dir" ] && dir="(não encontrado)"
-    created=$(stat -c '%y' "$config_file" 2>/dev/null | cut -d. -f1)
-    [ -z "$created" ] && created=$(date -r "$config_file" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
+    [ ! -d "$dir" ] && dir="(nao encontrado)"
+    # Usa stat que funciona em Linux (GNU coreutils)
+    if command -v stat >/dev/null 2>&1; then
+        created=$(stat -c '%y' "$config_file" 2>/dev/null | cut -d. -f1)
+    else
+        created=$(ls -l "$config_file" 2>/dev/null | awk '{print $6, $7, $8}')
+    fi
     ssl_expiry="N/A"
     if [ "$ssl" = "Sim" ] && [ -n "$domain" ]; then
         ssl_expiry=$(echo | run_helper openssl-check "$domain" 2>/dev/null | cut -d= -f2)
-        [ -z "$ssl_expiry" ] && ssl_expiry="Não foi possível verificar"
+        [ -z "$ssl_expiry" ] && ssl_expiry="Nao foi possivel verificar"
     fi
 
     echo -e "\n${BLUE}=== $project ===${NC}"
     echo "  Dono:       $REAL_USER"
-    echo "  Domínio:    ${domain:-N/A}"
-    echo "  Porta:      ${port:-N/A (site estático)}"
+    echo "  Dominio:    ${domain:-N/A}"
+    echo "  Porta:      ${port:-N/A (site estatico)}"
     echo "  SSL:        $ssl"
     echo "  Ativo:      $enabled"
-    echo "  Diretório:  $dir"
+    echo "  Diretorio:  $dir"
     echo "  Criado em:  ${created:-N/A}"
     [ "$ssl" = "Sim" ] && echo "  SSL expira: $ssl_expiry"
 }
 
 check_all_ssl() {
-    echo -e "\n${BLUE}=== Verificação de Certificados SSL ===${NC}"
+    echo -e "\n${BLUE}=== Verificacao de Certificados SSL ===${NC}"
     local found=0
     local pattern
     if [ "$REAL_USER" = "root" ]; then
@@ -143,7 +213,7 @@ check_all_ssl() {
                         echo -e "  ${GREEN}✓ $project ($domain): $days_left dias restantes${NC}"
                     fi
                 else
-                    echo -e "  ${YELLOW}? $project ($domain): Não foi possível verificar${NC}"
+                    echo -e "  ${YELLOW}? $project ($domain): Nao foi possivel verificar${NC}"
                 fi
             fi
         fi
@@ -154,12 +224,12 @@ check_all_ssl() {
 backup_project() {
     local project=$1
     [[ "$project" =~ \.\. ]] || [[ "$project" =~ / ]] && {
-        log_error "Nome de projeto inválido"
+        log_error "Nome de projeto invalido"
         return 1
     }
     local dir="$USER_DIR/$project"
     [ ! -d "$dir" ] && {
-        log_error "Diretório não encontrado"
+        log_error "Diretorio nao encontrado"
         return 1
     }
 
@@ -175,4 +245,12 @@ backup_project() {
         log_error "Falha ao criar backup"
         return 1
     fi
+}
+
+# Extrai o dominio principal de um arquivo de config nginx
+# Usa o primeiro server_name encontrado
+get_domain_from_config() {
+    local config_file="$1"
+    [ ! -f "$config_file" ] && return 1
+    grep -m1 "server_name" "$config_file" | awk '{print $2}' | tr -d ';'
 }

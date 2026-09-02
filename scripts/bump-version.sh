@@ -43,7 +43,7 @@ CURRENT_DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
 TEMP_CHANGELOG=$(mktemp)
 
 cat >"$TEMP_CHANGELOG" <<EOF
-launchinfra ($NEW_VERSION) noble; urgency=medium
+launchinfra ($NEW_VERSION) stable; urgency=medium
 
   * $CHANGES
 

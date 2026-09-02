@@ -20,11 +20,12 @@ get_version() {
         fi
     done
 
-    echo "2.0"
+    # Sem fallback silencioso - retorna vazio e log_error em quem chama
+    return 1
 }
 
 show_version() {
-    echo "LaunchInfra v2.4.0"
+    echo "LaunchInfra v2.4.1"
     echo "Copyright (c) 2024 Hildemberg Eling de Araujo Lucena"
 }
 
@@ -38,7 +39,7 @@ show_help() {
     echo ""
     echo -e "${YELLOW}USO:${NC}"
     echo "  launchinfra NOME [PORTA] [OPCOES]"
-    echo "  launchinfra config [--email EMAIL] [--domain DOMINIO_BASE]"
+    echo "  launchinfra config [--email EMAIL] [--domain DOMINIO_BASE] [--show]"
     echo "  launchinfra setup-nginx"
     echo "  launchinfra --version | --help"
     echo "  launchinfra --list | --list-ports"
@@ -56,14 +57,14 @@ show_help() {
     echo "  --version, -v        Mostra versao"
     echo "  --help, -h           Mostra esta ajuda"
     echo "  setup-nginx          Configura Nginx default para wildcard SSL"
-    echo "  --list               Lista seus projetos (root ve todos)"
-    echo "  --list-ports         Mostra portas em uso"
+    echo "  --list, ls           Lista seus projetos (root ve todos)"
+    echo "  --list-ports, ports  Mostra portas em uso"
     echo "  --info NOME          Mostra detalhes de um projeto"
     echo "  --edit NOME          Editar configuracao Nginx do projeto"
-    echo "  --remove NOME        Remove um projeto"
+    echo "  --remove NOME, rm    Remove um projeto"
     echo "  --remove NOME --backup  Remove com backup"
     echo "  --disable NOME       Desativa projeto (preserva config)"
-    echo "  --restore NOME       Reativa projeto desativado"
+    echo "  --restore, --enable NOME  Reativa projeto desativado"
     echo "  --renew NOME         Renova certificado SSL"
     echo "  --check-ssl          Verifica expiracao de todos os SSLs"
     echo "  --check-port PORTA   Verifica se porta esta em uso"
@@ -71,7 +72,7 @@ show_help() {
     echo "  --dry-run            Simula criacao sem aplicar"
     echo "  --no-ssl             Cria projeto sem SSL (HTTP)"
     echo "  --force              Forca criacao mesmo com conflitos"
-    echo "  --domain DOMINIO     Dominio customizado (nao usa DOMINIO_BASE)"
+    echo "  --domain DOMINIO     Dominio customizado (substitui DOMINIO_BASE)"
     echo "  --template DIR       Diretorio com template HTML"
     echo "  config               Define EMAIL e DOMINIO_BASE"
     echo ""
@@ -85,6 +86,7 @@ show_help() {
     echo "  launchinfra novo --dry-run"
     echo "  launchinfra config --email dev@exemplo.com"
     echo "  launchinfra config --domain exemplo.com"
+    echo "  launchinfra config --show"
     echo "  launchinfra ls"
     echo "  launchinfra rm blog"
     echo "  launchinfra --edit blog"
@@ -169,26 +171,50 @@ dispatch_cli() {
         return 0
         ;;
     --info)
+        if [ -z "$2" ]; then
+            echo "Uso: launchinfra --info NOME"
+            return 1
+        fi
         show_project_info "$2"
         return $?
         ;;
     --edit)
+        if [ -z "$2" ]; then
+            echo "Uso: launchinfra --edit NOME"
+            return 1
+        fi
         edit_project "$2"
         return $?
         ;;
     --remove | rm)
+        if [ -z "$2" ]; then
+            echo "Uso: launchinfra --remove NOME [--backup]"
+            return 1
+        fi
         remove_project "$2" "$3"
         return $?
         ;;
     --disable)
+        if [ -z "$2" ]; then
+            echo "Uso: launchinfra --disable NOME"
+            return 1
+        fi
         disable_project "$2"
         return $?
         ;;
     --restore | --enable)
+        if [ -z "$2" ]; then
+            echo "Uso: launchinfra --restore NOME"
+            return 1
+        fi
         restore_project "$2"
         return $?
         ;;
     --renew)
+        if [ -z "$2" ]; then
+            echo "Uso: launchinfra --renew NOME"
+            return 1
+        fi
         renew_ssl "$2"
         return $?
         ;;
@@ -197,10 +223,18 @@ dispatch_cli() {
         return 0
         ;;
     --check-port)
+        if [ -z "$2" ]; then
+            echo "Uso: launchinfra --check-port PORTA"
+            return 1
+        fi
         if check_port "$2"; then echo "in use"; else echo "available"; fi
         return 0
         ;;
     --check-domain)
+        if [ -z "$2" ]; then
+            echo "Uso: launchinfra --check-domain DOMINIO"
+            return 1
+        fi
         if check_domain "$2"; then echo "in use"; else echo "available"; fi
         return 0
         ;;
