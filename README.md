@@ -28,11 +28,35 @@
 
 ## Instalação
 
-### Via PPA/APT (recomendado)
+### Rápido (Ubuntu qualquer versão)
 
 ```bash
-curl -fsSL https://Hildemberg986.github.io/LaunchInfra/PUBLIC-KEY | sudo gpg --dearmor -o /etc/apt/keyrings/launchinfra.gpg
-echo "deb [signed-by=/etc/apt/keyrings/launchinfra.gpg] https://Hildemberg986.github.io/LaunchInfra/ stable main" | sudo tee /etc/apt/sources.list.d/launchinfra.list
+sudo add-apt-repository ppa:hildemberg986/launchinfra
+sudo apt update
+sudo apt install launchinfra
+```
+
+Funciona em Ubuntu 18.04 (bionic) até a versão atual (noble, jammy, e futuras como resolute). A replicação automática entre séries no painel do Launchpad garante cobertura.
+
+### Script automático (Ubuntu, Debian, Mint, Pop_OS, etc.)
+
+```bash
+curl -fsSL https://Hildemberg986.github.io/LaunchInfra/install.sh | sudo bash
+```
+
+O script detecta a distribuição e configura a melhor fonte:
+
+- **Ubuntu** → PPA `ppa:hildemberg986/launchinfra`
+- **Debian, Mint, Pop_OS, elementary, Zorin, Kali** → repositório estável `https://Hildemberg986.github.io/LaunchInfra/` (suite `stable`)
+
+### Manual em Debian e derivados
+
+```bash
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://Hildemberg986.github.io/LaunchInfra/public.key \
+    | sudo gpg --dearmor -o /etc/apt/keyrings/launchinfra.gpg
+echo "deb [signed-by=/etc/apt/keyrings/launchinfra.gpg] https://Hildemberg986.github.io/LaunchInfra/ stable main" \
+    | sudo tee /etc/apt/sources.list.d/launchinfra.list
 sudo apt update
 sudo apt install launchinfra
 ```
@@ -44,11 +68,16 @@ make build                              # Build do .deb
 sudo dpkg -i ../launchinfra_*.deb       # Instalar
 ```
 
-### Script automático
+### Atualizações automáticas
+
+Em **Ubuntu Server** o pacote `unattended-upgrades` já vem ativo por padrão. Para confirmar:
 
 ```bash
-./install.sh
+apt list --installed 2>/dev/null | grep unattended-upgrades
+dpkg-reconfigure -plow unattended-upgrades   # habilitar interativamente
 ```
+
+Em qualquer distro Debian-like, atualizações vêm via `sudo apt update && sudo apt upgrade`.
 
 ### Dependências de build
 

@@ -19,7 +19,10 @@ Description: Gerenciador de Projetos Web - LaunchInfra
  Multi-usuário: cada usuário gerencia apenas seus próprios projetos.
  Root tem acesso total a todos os projetos.
  .
- Inclui bash completion automático e suporte a Ubuntu 18.04 até 24.04+,
- além de variantes (Kubuntu, Xubuntu, Lubuntu, etc).
- Supports: Ubuntu 18.04 (bionic) through 24.04 (noble) and later.
+ Inclui bash completion automático e suporte a Ubuntu 18.04 e versões
+ mais recentes (todas as séries ativas no Launchpad são cobertas via
+ replicação automática a partir de noble), além de variantes Ubuntu
+ (Kubuntu, Xubuntu, Lubuntu, etc.) e derivados Debian-like (Mint, Pop_OS,
+ elementary, Zorin, Kali) através do repositório estável no GitHub Pages.
+ Supports: Ubuntu 18.04 (bionic) and later (todas as séries ativas).
 Multi-Arch: foreign

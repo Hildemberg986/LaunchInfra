@@ -42,8 +42,18 @@ echo "✓ Makefile atualizado"
 CURRENT_DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
 TEMP_CHANGELOG=$(mktemp)
 
+# Detectar série alvo: usar UBUNTU_CODENAME se existir, cair para VERSION_CODENAME,
+# e finalmente para "stable" (Debian ou outros)
+if [ -f /etc/os-release ]; then
+    . /etc/os-release
+    DIST="${UBUNTU_CODENAME:-${VERSION_CODENAME:-stable}}"
+else
+    DIST="stable"
+fi
+echo "🎯 Série alvo detectada: $DIST"
+
 cat >"$TEMP_CHANGELOG" <<EOF
-launchinfra ($NEW_VERSION) stable; urgency=medium
+launchinfra ($NEW_VERSION) $DIST; urgency=medium
 
   * $CHANGES
 

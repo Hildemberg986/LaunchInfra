@@ -87,8 +87,10 @@ jobs:
           NEW="${{ steps.version.outputs.new }}"
           DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
           sed -i "s/^VERSION *=.*/VERSION = $NEW/" Makefile
+          DIST=$(. /etc/os-release && echo "$UBUNTU_CODENAME")
+          echo "🎯 Série alvo detectada: $DIST"
           TEMP=$(mktemp)
-          printf "launchinfra (%s) noble; urgency=medium\n\n  * Release automatica v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" "$NEW" "$NEW" "$DATE" > "$TEMP"
+          printf "launchinfra (%s) %s; urgency=medium\n\n  * Release automatica v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" "$NEW" "$DIST" "$NEW" "$DATE" > "$TEMP"
           cat debian/changelog >> "$TEMP"
           mv "$TEMP" debian/changelog
           sed -i 's/echo "LaunchInfra v.*/echo "LaunchInfra v'"$NEW"'"/' src/lib/cli.sh
@@ -99,6 +101,13 @@ jobs:
           make clean
           dpkg-buildpackage -S -sa -us -uc
           make build
+
+          # Garantir que Distribution: no .changes bate com UBUNTU_CODENAME do runner
+          DIST=$(. /etc/os-release && echo "$UBUNTU_CODENAME")
+          if [ -f "../launchinfra_${NEW}_source.changes" ]; then
+            sed -i "s/^Distribution: .*/Distribution: $DIST/" "../launchinfra_${NEW}_source.changes"
+            echo "✅ Distribution: $DIST aplicado ao .changes"
+          fi
 
       - name: Verificar arquivos gerados
         if: steps.bump.outputs.skip != 'true'
@@ -123,7 +132,7 @@ jobs:
         run: |
           NEW="${{ steps.version.outputs.new }}"
           echo "🔍 Assinando pacote com GPG..."
-          
+
           # Verificar se a chave existe antes de assinar
           if ! gpg --list-secret-keys BCE80ABE13055B48 2>/dev/null; then
             echo "❌ Chave GPG BCE80ABE13055B48 não encontrada!"
@@ -131,13 +140,13 @@ jobs:
             gpg --list-secret-keys --keyid-format LONG
             exit 1
           fi
-          
+
           # Verificar se o arquivo .changes existe
           if [ ! -f "../launchinfra_${NEW}_source.changes" ]; then
             echo "❌ Arquivo .changes não encontrado!"
             exit 1
           fi
-          
+
           # Tentar assinar com passphrase se disponível
           if [ -n "${{ secrets.GPG_PASSPHRASE }}" ]; then
             echo "Usando passphrase para assinar..."
@@ -146,7 +155,7 @@ jobs:
             echo "Tentando assinar sem passphrase..."
             debsign -k BCE80ABE13055B48 ../launchinfra_${NEW}_source.changes
           fi
-          
+
           echo "✅ Pacote assinado com sucesso!"
 
       - name: Enviar para PPA
@@ -154,13 +163,13 @@ jobs:
         run: |
           NEW="${{ steps.version.outputs.new }}"
           echo "🔍 Enviando para PPA..."
-          
+
           # Verificar se o arquivo assinado existe
           if [ ! -f "../launchinfra_${NEW}_source.changes" ]; then
             echo "❌ Arquivo .changes não encontrado!"
             exit 1
           fi
-          
+
           # Configurar dput - usando echo para evitar problemas com YAML
           mkdir -p ~/.dput.d/
           echo '[ppa:hildemberg986/launchinfra]' > ~/.dput.d/launchinfra.conf
@@ -169,10 +178,10 @@ jobs:
           echo 'incoming = ~hildemberg986/launchinfra/ubuntu/' >> ~/.dput.d/launchinfra.conf
           echo 'login = anonymous' >> ~/.dput.d/launchinfra.conf
           echo 'allow_unsigned_uploads = 0' >> ~/.dput.d/launchinfra.conf
-          
+
           echo "📄 Configuração do dput:"
           cat ~/.dput.d/launchinfra.conf
-          
+
           # Tentar upload
           dput ppa:hildemberg986/launchinfra ../launchinfra_${NEW}_source.changes
 
