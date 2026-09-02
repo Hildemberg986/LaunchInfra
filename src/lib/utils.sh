@@ -163,7 +163,7 @@ show_project_info() {
     if command -v stat >/dev/null 2>&1; then
         created=$(stat -c '%y' "$config_file" 2>/dev/null | cut -d. -f1)
     else
-        created=$(ls -l "$config_file" 2>/dev/null | awk '{print $6, $7, $8}')
+        created=$(find "$config_file" -maxdepth 0 -printf '%t' 2>/dev/null)
     fi
     ssl_expiry="N/A"
     if [ "$ssl" = "Sim" ] && [ -n "$domain" ]; then
