@@ -21,26 +21,61 @@ jobs:
         uses: crazy-max/ghaction-import-gpg@v6
         with:
           gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          fingerprint: BCE80ABE13055B48
+
+      - name: Debug GPG - Verificar chave importada
+        run: |
+          echo "🔍 Listando chaves GPG importadas..."
+          gpg --list-secret-keys --keyid-format LONG || true
+          echo ""
+          echo "🔍 Procurando pela chave BCE80ABE13055B48..."
+          if gpg --list-secret-keys BCE80ABE13055B48 2>/dev/null; then
+            echo "✅ Chave GPG encontrada com sucesso!"
+          else
+            echo "❌ Chave GPG NÃO encontrada!"
+            echo ""
+            echo "Verifique se o secret GPG_PRIVATE_KEY está configurado:"
+            echo "1. Deve conter a chave PGP com cabeçalhos"
+            echo "2. Deve estar no formato:"
+            echo "   -----BEGIN PGP PRIVATE KEY BLOCK-----"
+            echo "   ... (conteúdo) ..."
+            echo "   -----END PGP PRIVATE KEY BLOCK-----"
+            echo ""
+            echo "Se estiver em base64, decodifique primeiro."
+            exit 1
+          fi
 
       - id: bump
         run: |
           LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          COMMITS=$(git log "$LAST_TAG..HEAD" --pretty=format:"%s" 2>/dev/null)
-          NEW_VERSION=$(grep '^VERSION' Makefile | awk '{print $3}')
-          if [ -z "$COMMITS" ]; then
-            # No new commits since last tag - check if release already exists via API
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/tags/v$NEW_VERSION")
-            if [ "$HTTP_CODE" = "200" ]; then
-              echo "skip=true" >> $GITHUB_OUTPUT
-              exit 0
-            fi
-            # Release doesn't exist yet - force it
-            echo "skip=false" >> $GITHUB_OUTPUT
-            exit 0
-          fi
+          COMMITS=$(git log "$LAST_TAG"..HEAD --pretty=format:"%s" 2>/dev/null)
+          if [ -z "$COMMITS" ]; then echo "skip=true" >> $GITHUB_OUTPUT; exit 0; fi
+          MAJOR=0; MINOR=0; PATCH=0
+          while IFS= read -r commit; do
+            [[ "$commit" == Merge* ]] && continue
+            if echo "$commit" | grep -qiE '^(feat|feature|add|adiciona)[^a-z]'; then MINOR=$((MINOR+1))
+            elif echo "$commit" | grep -qiE '^(fix|bug|corrige|hotfix|resolve)[^a-z]'; then PATCH=$((PATCH+1))
+            elif echo "$commit" | grep -qiE 'BREAKING CHANGE|breaking|major'; then MAJOR=$((MAJOR+1))
+            else PATCH=$((PATCH+1)); fi
+          done <<< "$COMMITS"
+          [ "$MAJOR" -gt 0 ] && BUMP="major" || { [ "$MINOR" -gt 0 ] && BUMP="minor" || BUMP="patch"; }
+          echo "bump=$BUMP" >> $GITHUB_OUTPUT
           echo "skip=false" >> $GITHUB_OUTPUT
+
+      - if: steps.bump.outputs.skip != 'true'
+        id: version
+        run: |
+          CURRENT=$(grep '^VERSION' Makefile | awk '{print $3}')
+          MAJOR=$(echo "$CURRENT" | cut -d. -f1)
+          MINOR=$(echo "$CURRENT" | cut -d. -f2)
+          PATCH=$(echo "$CURRENT" | cut -d. -f3)
+          case "${{ steps.bump.outputs.bump }}" in
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH+1)) ;;
+          esac
+          echo "new=${MAJOR}.${MINOR}.${PATCH}" >> $GITHUB_OUTPUT
 
       - if: steps.bump.outputs.skip != 'true'
         run: |
@@ -49,8 +84,9 @@ jobs:
 
       - if: steps.bump.outputs.skip != 'true'
         run: |
-          NEW=$(grep '^VERSION' Makefile | awk '{print $3}')
+          NEW="${{ steps.version.outputs.new }}"
           DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
+          sed -i "s/^VERSION *=.*/VERSION = $NEW/" Makefile
           TEMP=$(mktemp)
           printf "launchinfra (%s) noble; urgency=medium\n\n  * Release automatica v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" "$NEW" "$NEW" "$DATE" > "$TEMP"
           cat debian/changelog >> "$TEMP"
@@ -64,27 +100,90 @@ jobs:
           dpkg-buildpackage -S -sa -us -uc
           make build
 
-      - if: steps.bump.outputs.skip != 'true'
+      - name: Verificar arquivos gerados
+        if: steps.bump.outputs.skip != 'true'
         run: |
-          NEW=$(grep '^VERSION' Makefile | awk '{print $3}')
-          debsign -k BCE80ABE13055B48 ../launchinfra_${NEW}_source.changes
+          NEW="${{ steps.version.outputs.new }}"
+          echo "🔍 Versão: $NEW"
+          echo "🔍 Arquivos gerados:"
+          ls -la ../launchinfra_${NEW}_* 2>/dev/null || echo "⚠️  Nenhum arquivo encontrado!"
+          echo ""
+          echo "🔍 Verificando arquivo .changes:"
+          if [ -f "../launchinfra_${NEW}_source.changes" ]; then
+            echo "✅ .changes encontrado"
+            echo "Conteúdo:"
+            cat "../launchinfra_${NEW}_source.changes" | head -30
+          else
+            echo "❌ .changes NÃO encontrado!"
+            exit 1
+          fi
+
+      - name: Assinar pacote com GPG
+        if: steps.bump.outputs.skip != 'true'
+        run: |
+          NEW="${{ steps.version.outputs.new }}"
+          echo "🔍 Assinando pacote com GPG..."
+          
+          # Verificar se a chave existe antes de assinar
+          if ! gpg --list-secret-keys BCE80ABE13055B48 2>/dev/null; then
+            echo "❌ Chave GPG BCE80ABE13055B48 não encontrada!"
+            echo "🔍 Chaves disponíveis:"
+            gpg --list-secret-keys --keyid-format LONG
+            exit 1
+          fi
+          
+          # Verificar se o arquivo .changes existe
+          if [ ! -f "../launchinfra_${NEW}_source.changes" ]; then
+            echo "❌ Arquivo .changes não encontrado!"
+            exit 1
+          fi
+          
+          # Tentar assinar com passphrase se disponível
+          if [ -n "${{ secrets.GPG_PASSPHRASE }}" ]; then
+            echo "Usando passphrase para assinar..."
+            debsign -k BCE80ABE13055B48 --passphrase="${{ secrets.GPG_PASSPHRASE }}" ../launchinfra_${NEW}_source.changes
+          else
+            echo "Tentando assinar sem passphrase..."
+            debsign -k BCE80ABE13055B48 ../launchinfra_${NEW}_source.changes
+          fi
+          
+          echo "✅ Pacote assinado com sucesso!"
+
+      - name: Enviar para PPA
+        if: steps.bump.outputs.skip != 'true'
+        run: |
+          NEW="${{ steps.version.outputs.new }}"
+          echo "🔍 Enviando para PPA..."
+          
+          # Verificar se o arquivo assinado existe
+          if [ ! -f "../launchinfra_${NEW}_source.changes" ]; then
+            echo "❌ Arquivo .changes não encontrado!"
+            exit 1
+          fi
+          
+          # Configurar dput - usando echo para evitar problemas com YAML
+          mkdir -p ~/.dput.d/
+          echo '[ppa:hildemberg986/launchinfra]' > ~/.dput.d/launchinfra.conf
+          echo 'fqdn = ppa.launchpad.net' >> ~/.dput.d/launchinfra.conf
+          echo 'method = ftp' >> ~/.dput.d/launchinfra.conf
+          echo 'incoming = ~hildemberg986/launchinfra/ubuntu/' >> ~/.dput.d/launchinfra.conf
+          echo 'login = anonymous' >> ~/.dput.d/launchinfra.conf
+          echo 'allow_unsigned_uploads = 0' >> ~/.dput.d/launchinfra.conf
+          
+          echo "📄 Configuração do dput:"
+          cat ~/.dput.d/launchinfra.conf
+          
+          # Tentar upload
           dput ppa:hildemberg986/launchinfra ../launchinfra_${NEW}_source.changes
 
       - if: steps.bump.outputs.skip != 'true'
         run: |
-          NEW=$(grep '^VERSION' Makefile | awk '{print $3}')
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
           git add Makefile debian/changelog src/lib/cli.sh
-          git commit -m "chore: bump para v${NEW} [skip ci]" || true
+          git commit -m "chore: bump para v${{ steps.version.outputs.new }} [skip ci]" || true
           git push origin main
-
-      - if: steps.bump.outputs.skip != 'true'
-        run: |
-          NEW=$(grep '^VERSION' Makefile | awk '{print $3}')
-          echo "new=$NEW" >> $GITHUB_OUTPUT
-        id: version
 
       - if: steps.bump.outputs.skip != 'true'
         uses: softprops/action-gh-release@v2
@@ -104,9 +203,8 @@ jobs:
 
       - if: steps.bump.outputs.skip != 'true'
         run: |
-          NEW=$(grep '^VERSION' Makefile | awk '{print $3}')
           mkdir -p new_repo/pool/main/l/launchinfra
-          cp ../launchinfra_${NEW}_all.deb new_repo/pool/main/l/launchinfra/launchinfra.deb
+          cp ../launchinfra_${{ steps.version.outputs.new }}_all.deb new_repo/pool/main/l/launchinfra/launchinfra.deb
           if [ -d "repo/pool" ]; then cp -r repo/pool new_repo/ 2>/dev/null || true; fi
 
       - if: steps.bump.outputs.skip != 'true'
