@@ -25,7 +25,7 @@ get_version() {
 }
 
 show_version() {
-    echo "LaunchInfra v2.4.2"
+    echo "LaunchInfra v2.5.0"
     echo "Copyright (c) 2024 Hildemberg Eling de Araujo Lucena"
 }
 
