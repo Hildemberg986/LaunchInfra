@@ -23,10 +23,15 @@ echo ""
 REPO_TYPE=""
 case "$ID" in
     ubuntu)
-        echo "🟠 Ubuntu detectado. Usando PPA oficial do Launchpad."
+        echo "🟠 Ubuntu detectado. Usando PPA oficial do Launchpad (noble)."
         REPO_TYPE="ppa"
-        sudo apt install -y software-properties-common
-        sudo add-apt-repository -y ppa:hildemberg986/launchinfra
+        sudo apt install -y software-properties-common ca-certificates gnupg
+        # Forçar a série noble (única publicada no PPA até que cópias sejam configuradas
+        # para outras séries). O comando abaixo é equivalente a:
+        #   sudo add-apt-repository ppa:hildemberg986/launchinfra
+        # mas fixa explicitamente noble, evitando 404 em Ubuntu 26.04+ (resolute...).
+        sudo add-apt-repository -y \
+            "deb https://ppa.launchpadcontent.net/hildemberg986/launchinfra/ubuntu noble main"
         ;;
     debian|linuxmint|pop|elementary|zorin|kali|neon)
         echo "🟢 $ID detectado. Usando repositorio estavel do GitHub Pages."
