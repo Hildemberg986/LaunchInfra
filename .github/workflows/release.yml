@@ -1,4 +1,4 @@
-name: Release Automático
+name: Release Automatico
 
 on:
   push:
@@ -9,13 +9,19 @@ permissions:
   pages: write
 
 jobs:
-  release:
+  # ------------------------------------------------------------------
+  # Job 1: Analisa commits, calcula versão, valida sintaxe
+  # ------------------------------------------------------------------
+  bump:
     runs-on: ubuntu-latest
+    outputs:
+      new: ${{ steps.version.outputs.new }}
+      skip: ${{ steps.bump.outputs.skip }}
+      bump: ${{ steps.bump.outputs.bump }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Importar GPG
         uses: crazy-max/ghaction-import-gpg@v6
@@ -34,15 +40,7 @@ jobs:
             echo "✅ Chave GPG encontrada com sucesso!"
           else
             echo "❌ Chave GPG NÃO encontrada!"
-            echo ""
-            echo "Verifique se o secret GPG_PRIVATE_KEY está configurado:"
-            echo "1. Deve conter a chave PGP com cabeçalhos"
-            echo "2. Deve estar no formato:"
-            echo "   -----BEGIN PGP PRIVATE KEY BLOCK-----"
-            echo "   ... (conteúdo) ..."
-            echo "   -----END PGP PRIVATE KEY BLOCK-----"
-            echo ""
-            echo "Se estiver em base64, decodifique primeiro."
+            echo "Verifique se GPG_PRIVATE_KEY esta configurado."
             exit 1
           fi
 
@@ -82,95 +80,105 @@ jobs:
           sudo apt update && sudo apt install -y shellcheck
           shellcheck src/*.sh src/lib/*.sh
 
-      - if: steps.bump.outputs.skip != 'true'
+  # ------------------------------------------------------------------
+  # Job 2: Build + publish para cada série Ubuntu LTS
+  # ------------------------------------------------------------------
+  release:
+    needs: bump
+    if: needs.bump.outputs.skip != 'true'
+    runs-on: ubuntu-${{ matrix.series }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Lista de séries LTS suportadas
+        series: [focal, jammy, noble, resolute]
+    env:
+      NEW: ${{ needs.bump.outputs.new }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Importar GPG
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          fingerprint: BCE80ABE13055B48
+
+      - name: Atualizar versão no código
         run: |
-          NEW="${{ steps.version.outputs.new }}"
-          DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
-          sed -i "s/^VERSION *=.*/VERSION = $NEW/" Makefile
+          # Detectar codename do runner para usar no changelog
           DIST=$(. /etc/os-release && echo "$UBUNTU_CODENAME")
-          echo "🎯 Série alvo detectada: $DIST"
+          echo "🎯 Série alvo: $DIST"
+          CURRENT_SERIES="${{ matrix.series }}"
+
+          # Se o runner é uma serie diferente do matrix target, forçar a serie matrix
+          # O GitHub Actions ubuntu-XX.04 usa codename real, então matrix.series
+          # é igual a UBUNTU_CODENAME na maioria dos casos
+          echo "✅ Usando serie: $CURRENT_SERIES"
+
+          # Atualizar Makefile
+          sed -i "s/^VERSION *=.*/VERSION = $NEW/" Makefile
+
+          # Atualizar changelog com a serie correta
           TEMP=$(mktemp)
-          printf "launchinfra (%s) %s; urgency=medium\n\n  * Release automatica v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" "$NEW" "$DIST" "$NEW" "$DATE" > "$TEMP"
+          DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
+          printf "launchinfra (%s) %s; urgency=medium\n\n  * Release automatica v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" \
+            "$NEW" "$CURRENT_SERIES" "$NEW" "$DATE" > "$TEMP"
           cat debian/changelog >> "$TEMP"
           mv "$TEMP" debian/changelog
+
+          # Atualizar versao em cli.sh
           sed -i 's/echo "LaunchInfra v.*/echo "LaunchInfra v'"$NEW"'"/' src/lib/cli.sh
 
-      - if: steps.bump.outputs.skip != 'true'
+      - name: Instalar dependencias
         run: |
           sudo apt update && sudo apt install -y devscripts debhelper build-essential dput
+
+      - name: Build source package
+        run: |
           make clean
           dpkg-buildpackage -S -sa -us -uc
           make build
+          echo "📦 Arquivos gerados:"
+          ls -la ../launchinfra_${NEW}_* 2>/dev/null
 
-          # Garantir que Distribution: no .changes bate com UBUNTU_CODENAME do runner
-          DIST=$(. /etc/os-release && echo "$UBUNTU_CODENAME")
-          if [ -f "../launchinfra_${NEW}_source.changes" ]; then
-            sed -i "s/^Distribution: .*/Distribution: $DIST/" "../launchinfra_${NEW}_source.changes"
-            echo "✅ Distribution: $DIST aplicado ao .changes"
-          fi
-
-      - name: Verificar arquivos gerados
-        if: steps.bump.outputs.skip != 'true'
+      - name: Garantir Distribution correto no .changes
         run: |
-          NEW="${{ steps.version.outputs.new }}"
-          echo "🔍 Versão: $NEW"
-          echo "🔍 Arquivos gerados:"
-          ls -la ../launchinfra_${NEW}_* 2>/dev/null || echo "⚠️  Nenhum arquivo encontrado!"
-          echo ""
-          echo "🔍 Verificando arquivo .changes:"
+          CURRENT_SERIES="${{ matrix.series }}"
           if [ -f "../launchinfra_${NEW}_source.changes" ]; then
-            echo "✅ .changes encontrado"
-            echo "Conteúdo:"
-            cat "../launchinfra_${NEW}_source.changes" | head -30
+            sed -i "s/^Distribution: .*/Distribution: $CURRENT_SERIES/" \
+              "../launchinfra_${NEW}_source.changes"
+            echo "✅ Distribution: $CURRENT_SERIES aplicado ao .changes"
+            echo "Conteudo do .changes:"
+            cat "../launchinfra_${NEW}_source.changes" | head -15
           else
-            echo "❌ .changes NÃO encontrado!"
+            echo "❌ .changes nao encontrado!"
             exit 1
           fi
 
       - name: Assinar pacote com GPG
-        if: steps.bump.outputs.skip != 'true'
         run: |
-          NEW="${{ steps.version.outputs.new }}"
-          echo "🔍 Assinando pacote com GPG..."
-
-          # Verificar se a chave existe antes de assinar
+          # Verificar chave
           if ! gpg --list-secret-keys BCE80ABE13055B48 2>/dev/null; then
-            echo "❌ Chave GPG BCE80ABE13055B48 não encontrada!"
-            echo "🔍 Chaves disponíveis:"
-            gpg --list-secret-keys --keyid-format LONG
+            echo "❌ Chave GPG nao encontrada!"
             exit 1
           fi
 
-          # Verificar se o arquivo .changes existe
-          if [ ! -f "../launchinfra_${NEW}_source.changes" ]; then
-            echo "❌ Arquivo .changes não encontrado!"
-            exit 1
-          fi
-
-          # Tentar assinar com passphrase se disponível
+          # Assinar
           if [ -n "${{ secrets.GPG_PASSPHRASE }}" ]; then
-            echo "Usando passphrase para assinar..."
-            debsign -k BCE80ABE13055B48 --passphrase="${{ secrets.GPG_PASSPHRASE }}" ../launchinfra_${NEW}_source.changes
+            echo "🔐 Assinando com passphrase..."
+            debsign -k BCE80ABE13055B48 --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
+              ../launchinfra_${NEW}_source.changes
           else
-            echo "Tentando assinar sem passphrase..."
+            echo "🔐 Assinando sem passphrase..."
             debsign -k BCE80ABE13055B48 ../launchinfra_${NEW}_source.changes
           fi
+          echo "✅ Assinatura concluida!"
 
-          echo "✅ Pacote assinado com sucesso!"
-
-      - name: Enviar para PPA
-        if: steps.bump.outputs.skip != 'true'
+      - name: Configurar dput
         run: |
-          NEW="${{ steps.version.outputs.new }}"
-          echo "🔍 Enviando para PPA..."
-
-          # Verificar se o arquivo assinado existe
-          if [ ! -f "../launchinfra_${NEW}_source.changes" ]; then
-            echo "❌ Arquivo .changes não encontrado!"
-            exit 1
-          fi
-
-          # Configurar dput - usando echo para evitar problemas com YAML
           mkdir -p ~/.dput.d/
           echo '[ppa:hildemberg986/launchinfra]' > ~/.dput.d/launchinfra.conf
           echo 'fqdn = ppa.launchpad.net' >> ~/.dput.d/launchinfra.conf
@@ -178,46 +186,80 @@ jobs:
           echo 'incoming = ~hildemberg986/launchinfra/ubuntu/' >> ~/.dput.d/launchinfra.conf
           echo 'login = anonymous' >> ~/.dput.d/launchinfra.conf
           echo 'allow_unsigned_uploads = 0' >> ~/.dput.d/launchinfra.conf
-
-          echo "📄 Configuração do dput:"
+          echo "📄 Configuracao do dput:"
           cat ~/.dput.d/launchinfra.conf
 
-          # Tentar upload
+      - name: Enviar para PPA
+        run: |
+          echo "📤 Enviando para PPA (${{ matrix.series }})..."
+          dput ppa:hildemberg986/launchinfra ../launchinfra_${{ needs.bump.outputs.new }}_source.changes
+
+          # Upload
+          echo "📤 Enviando para PPA (${{ matrix.series }})..."
           dput ppa:hildemberg986/launchinfra ../launchinfra_${NEW}_source.changes
 
-      - if: steps.bump.outputs.skip != 'true'
+      - name: Notificar sucesso
+        run: |
+          echo "🎉 Build e publish para ${{ matrix.series }} concluidos com sucesso!"
+          echo "📦 launchinfra $NEW publicado em ppa:hildemberg986/launchinfra para serie ${{ matrix.series }}"
+
+  # ------------------------------------------------------------------
+  # Job 3: Commit versao + GitHub Release + gh-pages
+  # ------------------------------------------------------------------
+  release-commit:
+    needs: [bump, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit versao no repo
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
-          git add Makefile debian/changelog src/lib/cli.sh
-          git commit -m "chore: bump para v${{ steps.version.outputs.new }} [skip ci]" || true
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{github.repository}}.git"
+
+          # Atualizar Makefile (versao ja foi feita no job release)
+          NEW="${{ needs.bump.outputs.new }}"
+          echo "VERSION = $NEW" > Makefile.tmp
+          # Preservar targets do Makefile
+          grep -v "^VERSION" Makefile >> Makefile.tmp
+          mv Makefile.tmp Makefile
+
+          git add Makefile src/lib/cli.sh
+          git commit -m "chore: bump para v${NEW}" || true
           git push origin main
 
-      - if: steps.bump.outputs.skip != 'true'
+      - name: GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.new }}
-          name: v${{ steps.version.outputs.new }}
-          files: ../launchinfra_${{ steps.version.outputs.new }}_all.deb
+          tag_name: v${{ needs.bump.outputs.new }}
+          name: v${{ needs.bump.outputs.new }}
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - if: steps.bump.outputs.skip != 'true'
+      - name: Atualizar gh-pages
         uses: actions/checkout@v4
         with:
           ref: gh-pages
           path: repo
 
-      - if: steps.bump.outputs.skip != 'true'
+      - name: Build gh-pages
         run: |
+          NEW="${{ needs.bump.outputs.new }}"
           mkdir -p new_repo/pool/main/l/launchinfra
-          cp ../launchinfra_${{ steps.version.outputs.new }}_all.deb new_repo/pool/main/l/launchinfra/launchinfra.deb
+          # Baixar .deb buildado na matrix (usar noble como referencia)
+          # Ou rebuild simples para gh-pages
+          sudo apt update && sudo apt install -y debhelper
+          cd /home/runner/work/LaunchInfra/LaunchInfra
+          # Build simples pra gh-pages
+          make clean && make build
+          cp ../launchinfra_${NEW}_all.deb new_repo/pool/main/l/launchinfra/
           if [ -d "repo/pool" ]; then cp -r repo/pool new_repo/ 2>/dev/null || true; fi
 
-      - if: steps.bump.outputs.skip != 'true'
-        run: |
           cd new_repo
           mkdir -p dists/stable/main/binary-amd64
           dpkg-scanpackages pool /dev/null > dists/stable/main/binary-amd64/Packages
@@ -226,7 +268,7 @@ jobs:
           printf 'Origin: LaunchInfra\nLabel: LaunchInfra\nSuite: stable\nCodename: stable\nArchitectures: amd64 all\nComponents: main\nDescription: LaunchInfra\nDate: %s\n' "$RELEASE_DATE" > dists/stable/Release
           apt-ftparchive release dists/stable >> dists/stable/Release
 
-      - if: steps.bump.outputs.skip != 'true'
+      - name: Deploy gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
