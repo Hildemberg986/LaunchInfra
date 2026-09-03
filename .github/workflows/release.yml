@@ -160,16 +160,24 @@ jobs:
           echo 'login = anonymous' >> ~/.dput.d/launchinfra.conf
           echo 'allow_unsigned_uploads = 0' >> ~/.dput.d/launchinfra.conf
 
+      - name: "Copiar arquivos para o diretório atual"
+        run: |
+          NEW="${{ needs.bump.outputs.new }}"
+          cp ../launchinfra_${NEW}_* .
+          cp ~/.dput.d/launchinfra.conf .
+          echo "📁 Arquivos copiados para o diretório atual:"
+          ls -la launchinfra_${NEW}_*
+
       - name: "Upload artifacts"
         uses: actions/upload-artifact@v4
         with:
           name: launchinfra-${{ needs.bump.outputs.new }}
           path: |
-            ../launchinfra_${{ needs.bump.outputs.new }}_source.changes
-            ../launchinfra_${{ needs.bump.outputs.new }}_*.tar.*
-            ../launchinfra_${{ needs.bump.outputs.new }}_*.dsc
-            ../launchinfra_${{ needs.bump.outputs.new }}_all.deb
-            ~/.dput.d/launchinfra.conf
+            launchinfra_${{ needs.bump.outputs.new }}_source.changes
+            launchinfra_${{ needs.bump.outputs.new }}_*.tar.*
+            launchinfra_${{ needs.bump.outputs.new }}_*.dsc
+            launchinfra_${{ needs.bump.outputs.new }}_all.deb
+            launchinfra.conf
           retention-days: 7
 
   # ------------------------------------------------------------------
