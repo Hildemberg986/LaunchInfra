@@ -8,6 +8,10 @@ permissions:
   contents: write
   pages: write
 
+env:
+  # Forçar uso de Node 24 para evitar warnings
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ------------------------------------------------------------------
   # Job 1: Analisa commits, calcula versão, atualiza changelog
@@ -160,28 +164,59 @@ jobs:
           echo 'login = anonymous' >> ~/.dput.d/launchinfra.conf
           echo 'allow_unsigned_uploads = 0' >> ~/.dput.d/launchinfra.conf
 
-      - name: "Copiar arquivos para o diretório atual"
+      - name: "Copiar arquivos para o diretório atual com fallback"
         run: |
           NEW="${{ needs.bump.outputs.new }}"
-          cp ../launchinfra_${NEW}_* .
+          echo "🔍 Procurando arquivos para copiar..."
+
+          # Tentativa 1: Copiar com wildcard
+          if cp ../launchinfra_${NEW}* . 2>/dev/null; then
+            echo "✅ Arquivos copiados com sucesso (wildcard)"
+          else
+            echo "⚠️ Wildcard falhou, tentando copiar arquivos específicos..."
+            
+            # Tentativa 2: Copiar arquivos específicos
+            for file in ../launchinfra_${NEW}_source.changes ../launchinfra_${NEW}_*.dsc ../launchinfra_${NEW}_*.tar.* ../launchinfra_${NEW}_*.deb; do
+              if [ -f "$file" ]; then
+                cp "$file" . && echo "✅ Copiado: $(basename $file)"
+              fi
+            done
+          fi
+
+          # Sempre copiar o dput.conf
           cp ~/.dput.d/launchinfra.conf .
-          echo "📁 Arquivos copiados para o diretório atual:"
-          ls -la launchinfra_${NEW}_*
+
+          echo "📁 Arquivos no diretório atual:"
+          ls -la
+
+      - name: "Verificar arquivos antes do upload"
+        run: |
+          echo "🔍 Verificando arquivos necessários..."
+          MISSING=0
+
+          for file in launchinfra_*.changes launchinfra_*.dsc launchinfra_*.tar.*; do
+            if [ -f "$file" ]; then
+              echo "✅ $file encontrado"
+            else
+              echo "❌ $file não encontrado!"
+              MISSING=1
+            fi
+          done
+
+          if [ $MISSING -eq 1 ]; then
+            echo "⚠️ Alguns arquivos estão faltando, mas continuando..."
+          fi
 
       - name: "Upload artifacts"
         uses: actions/upload-artifact@v4
         with:
           name: launchinfra-${{ needs.bump.outputs.new }}
           path: |
-            launchinfra_${{ needs.bump.outputs.new }}_source.changes
-            launchinfra_${{ needs.bump.outputs.new }}_*.tar.*
-            launchinfra_${{ needs.bump.outputs.new }}_*.dsc
-            launchinfra_${{ needs.bump.outputs.new }}_all.deb
-            launchinfra.conf
+            launchinfra_${{ needs.bump.outputs.new }}*
           retention-days: 7
 
   # ------------------------------------------------------------------
-  # Job 3: Publicar para Noble
+  # Job 3: Publicar para Noble (com verificações)
   # ------------------------------------------------------------------
   publish-noble:
     needs: [bump, build]
@@ -192,16 +227,29 @@ jobs:
           name: launchinfra-${{ needs.bump.outputs.new }}
           path: ./artifacts
 
+      - name: "Verificar artefatos baixados"
+        run: |
+          echo "🔍 Verificando artefatos..."
+          ls -la ./artifacts/
+          if [ -z "$(ls -A ./artifacts/)" ]; then
+            echo "❌ Nenhum artefato encontrado!"
+            exit 1
+          fi
+          echo "✅ Artefatos encontrados"
+
       - name: "Instalar dput e configurar GPG"
         run: |
           sudo apt update
           sudo apt install -y dput
 
-          # Importar chave pública via keyserver
-          gpg --keyserver keyserver.ubuntu.com --recv-keys BCE80ABE13055B48
-
-          # Alternativa: importar da chave privada exportada
-          # echo "${{ secrets.GPG_PUBLIC_KEY }}" | gpg --import
+          # Importar chave pública via keyserver com fallback
+          echo "🔑 Importando chave GPG..."
+          if gpg --keyserver keyserver.ubuntu.com --recv-keys BCE80ABE13055B48; then
+            echo "✅ Chave importada do keyserver"
+          else
+            echo "⚠️ Falha no keyserver, tentando com hkp..."
+            gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys BCE80ABE13055B48 || true
+          fi
 
       - name: "Enviar para PPA noble"
         run: |
@@ -209,12 +257,20 @@ jobs:
           cp ./artifacts/launchinfra.conf ~/.dput.d/launchinfra.conf
           cd ./artifacts
           NEW="${{ needs.bump.outputs.new }}"
+
+          # Verificar se o .changes existe
+          if [ ! -f "launchinfra_${NEW}_source.changes" ]; then
+            echo "❌ Arquivo .changes não encontrado!"
+            ls -la
+            exit 1
+          fi
+
           echo "📤 Enviando launchinfra ${NEW} para noble..."
           dput ppa:hildemberg986/launchinfra launchinfra_${NEW}_source.changes
           echo "✅ Noble publicado!"
 
   # ------------------------------------------------------------------
-  # Job 4: Publicar para outras séries
+  # Job 4: Publicar para outras séries (com verificações)
   # ------------------------------------------------------------------
   publish-other-series:
     needs: [bump, publish-noble]
@@ -229,13 +285,28 @@ jobs:
           name: launchinfra-${{ needs.bump.outputs.new }}
           path: ./artifacts
 
+      - name: "Verificar artefatos baixados"
+        run: |
+          echo "🔍 Verificando artefatos..."
+          ls -la ./artifacts/
+          if [ -z "$(ls -A ./artifacts/)" ]; then
+            echo "❌ Nenhum artefato encontrado!"
+            exit 1
+          fi
+          echo "✅ Artefatos encontrados"
+
       - name: "Instalar dput e configurar GPG"
         run: |
           sudo apt update
           sudo apt install -y dput
 
-          # Importar chave pública via keyserver
-          gpg --keyserver keyserver.ubuntu.com --recv-keys BCE80ABE13055B48
+          echo "🔑 Importando chave GPG..."
+          if gpg --keyserver keyserver.ubuntu.com --recv-keys BCE80ABE13055B48; then
+            echo "✅ Chave importada do keyserver"
+          else
+            echo "⚠️ Falha no keyserver, tentando com hkp..."
+            gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys BCE80ABE13055B48 || true
+          fi
 
       - name: "Configurar dput"
         run: |
@@ -247,23 +318,36 @@ jobs:
           cd ./artifacts
           SERIES="${{ matrix.series }}"
           NEW="${{ needs.bump.outputs.new }}"
-
           NEW_VERSION="${NEW}-0${SERIES}1"
 
           echo "🔄 Convertendo para $SERIES (versão: $NEW_VERSION)"
 
+          # Verificar se os arquivos existem
+          if [ ! -f "launchinfra_${NEW}_source.changes" ]; then
+            echo "❌ Arquivo .changes não encontrado!"
+            ls -la
+            exit 1
+          fi
+
+          # Copiar arquivos com nova versão
           for file in launchinfra_${NEW}_*; do
-            NEW_FILE="${file/${NEW}/${NEW_VERSION}}"
-            cp "$file" "$NEW_FILE"
+            if [ -f "$file" ]; then
+              NEW_FILE="${file/${NEW}/${NEW_VERSION}}"
+              cp "$file" "$NEW_FILE"
+              echo "✅ Copiado: $file → $NEW_FILE"
+            fi
           done
 
+          # Atualizar .changes
           sed -i "s/^Version: .*/Version: $NEW_VERSION/" launchinfra_${NEW_VERSION}_source.changes
           sed -i "s/^Distribution: .*/Distribution: $SERIES/" launchinfra_${NEW_VERSION}_source.changes
-          sed -i "s/^Version: .*/Version: $NEW_VERSION/" launchinfra_${NEW_VERSION}.dsc
+
+          # Atualizar .dsc se existir
+          if [ -f "launchinfra_${NEW_VERSION}.dsc" ]; then
+            sed -i "s/^Version: .*/Version: $NEW_VERSION/" launchinfra_${NEW_VERSION}.dsc
+          fi
 
           echo "✅ Distribution alterado para $SERIES"
-          echo "📄 Conteúdo do .changes:"
-          head -10 launchinfra_${NEW_VERSION}_source.changes
 
       - name: "Re-assinar pacote para ${{ matrix.series }}"
         run: |
@@ -272,8 +356,16 @@ jobs:
           NEW="${{ needs.bump.outputs.new }}"
           NEW_VERSION="${NEW}-0${SERIES}1"
 
+          # Verificar chave GPG
           if ! gpg --list-secret-keys BCE80ABE13055B48 2>/dev/null; then
             echo "❌ Chave GPG não encontrada!"
+            exit 1
+          fi
+
+          # Verificar se o .changes existe
+          if [ ! -f "launchinfra_${NEW_VERSION}_source.changes" ]; then
+            echo "❌ Arquivo .changes não encontrado!"
+            ls -la
             exit 1
           fi
 
@@ -298,7 +390,7 @@ jobs:
           echo "✅ ${SERIES} publicado!"
 
   # ------------------------------------------------------------------
-  # Job 5: Finalizar
+  # Job 5: Finalizar (com verificações)
   # ------------------------------------------------------------------
   finalize:
     needs: [bump, build, publish-noble, publish-other-series]
@@ -313,6 +405,16 @@ jobs:
         with:
           name: launchinfra-${{ needs.bump.outputs.new }}
           path: ./artifacts
+
+      - name: "Verificar artefatos"
+        run: |
+          echo "🔍 Verificando artefatos para finalização..."
+          ls -la ./artifacts/
+          if [ -z "$(ls -A ./artifacts/)" ]; then
+            echo "⚠️ Nenhum artefato encontrado para finalização"
+          else
+            echo "✅ Artefatos encontrados"
+          fi
 
       - name: "Commit versão no repo"
         run: |
@@ -347,7 +449,7 @@ jobs:
         with:
           tag_name: v${{ needs.bump.outputs.new }}
           name: v${{ needs.bump.outputs.new }}
-          files: ./artifacts/launchinfra_${{ needs.bump.outputs.new }}_all.deb
+          files: ./artifacts/launchinfra_${{ needs.bump.outputs.new }}*.deb
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -362,7 +464,17 @@ jobs:
         run: |
           NEW="${{ needs.bump.outputs.new }}"
           mkdir -p new_repo/pool/main/l/launchinfra
-          cp ./artifacts/launchinfra_${NEW}_all.deb new_repo/pool/main/l/launchinfra/launchinfra.deb
+
+          # Procurar o .deb com wildcard
+          DEB_FILE=$(ls ./artifacts/launchinfra_${NEW}_*.deb 2>/dev/null | head -1)
+          if [ -n "$DEB_FILE" ] && [ -f "$DEB_FILE" ]; then
+            cp "$DEB_FILE" new_repo/pool/main/l/launchinfra/launchinfra.deb
+            echo "✅ .deb copiado: $DEB_FILE"
+          else
+            echo "⚠️ .deb não encontrado, pulando gh-pages"
+            exit 0
+          fi
+
           if [ -d "repo/pool" ]; then cp -r repo/pool new_repo/ 2>/dev/null || true; fi
 
           cd new_repo
