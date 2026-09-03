@@ -192,10 +192,16 @@ jobs:
           name: launchinfra-${{ needs.bump.outputs.new }}
           path: ./artifacts
 
-      - name: "Instalar dput"
+      - name: "Instalar dput e configurar GPG"
         run: |
           sudo apt update
           sudo apt install -y dput
+
+          # Importar chave pública via keyserver
+          gpg --keyserver keyserver.ubuntu.com --recv-keys BCE80ABE13055B48
+
+          # Alternativa: importar da chave privada exportada
+          # echo "${{ secrets.GPG_PUBLIC_KEY }}" | gpg --import
 
       - name: "Enviar para PPA noble"
         run: |
@@ -223,10 +229,13 @@ jobs:
           name: launchinfra-${{ needs.bump.outputs.new }}
           path: ./artifacts
 
-      - name: "Instalar dput"
+      - name: "Instalar dput e configurar GPG"
         run: |
           sudo apt update
           sudo apt install -y dput
+
+          # Importar chave pública via keyserver
+          gpg --keyserver keyserver.ubuntu.com --recv-keys BCE80ABE13055B48
 
       - name: "Configurar dput"
         run: |
