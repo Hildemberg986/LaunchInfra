@@ -135,6 +135,22 @@ jobs:
             exit 1
           fi
 
+      - name: "Commit versão no repo (no build job)"
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{github.repository}}.git"
+          NEW="${{ needs.bump.outputs.new }}"
+
+          git add Makefile debian/changelog
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: bump para v${NEW} [skip ci]"
+            git push origin main
+            echo "✅ Versão commitada: v${NEW}"
+          else
+            echo "✅ Nenhuma mudança para commitar"
+          fi
+
       - name: "Instalar dependências"
         run: |
           sudo apt update && sudo apt install -y devscripts debhelper build-essential dput
@@ -471,21 +487,6 @@ jobs:
             echo "⚠️ Nenhum artefato encontrado para finalização"
           else
             echo "✅ Artefatos encontrados"
-          fi
-
-      - name: "Commit versão no repo"
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git remote set-url origin "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{github.repository}}.git"
-          NEW="${{ needs.bump.outputs.new }}"
-
-          git add Makefile debian/changelog src/lib/cli.sh
-          if ! git diff --staged --quiet; then
-            git commit -m "chore: bump para v${NEW} [skip ci]"
-            git push origin main
-          else
-            echo "✅ Nenhuma mudança para commitar"
           fi
 
       - name: "Criar tag"
