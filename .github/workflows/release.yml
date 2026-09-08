@@ -9,12 +9,11 @@ permissions:
   pages: write
 
 env:
-  # Forçar uso de Node 24 para evitar warnings
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # ------------------------------------------------------------------
-  # Job 1: Analisa commits, calcula versão, atualiza changelog
+  # Job 1: Analisa commits e calcula versão
   # ------------------------------------------------------------------
   bump:
     runs-on: ubuntu-latest
@@ -70,23 +69,17 @@ jobs:
           sudo apt update && sudo apt install -y shellcheck
           shellcheck src/*.sh src/lib/*.sh || true
 
-      - if: steps.bump.outputs.skip != 'true'
-        name: "Validar changelog"
-        run: |
-          if ! head -1 debian/changelog | grep -q "noble\|focal\|jammy\|resolute"; then
-            echo "⚠️ Changelog não tem série definida! Adicionando noble..."
-            NEW="${{ steps.version.outputs.new }}"
-            DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
-            sed -i "1i launchinfra ($NEW) noble; urgency=medium\n\n  * Release automatica v$NEW\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  $DATE\n" debian/changelog
-          fi
-
   # ------------------------------------------------------------------
-  # Job 2: Build APENAS UMA VEZ (Ubuntu Noble)
+  # Job 2: Build e publish para cada série (matrix strategy)
   # ------------------------------------------------------------------
-  build:
+  build-and-publish:
     needs: bump
     if: needs.bump.outputs.skip != 'true'
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        series: [noble, resolute, jammy, focal]
     outputs:
       version: ${{ needs.bump.outputs.new }}
     steps:
@@ -101,41 +94,164 @@ jobs:
           passphrase: ${{ secrets.GPG_PASSPHRASE }}
           fingerprint: BCE80ABE13055B48
 
-      - name: "Atualizar versão no código"
+      - name: "Atualizar versão no Makefile"
         run: |
           NEW="${{ needs.bump.outputs.new }}"
-
-          # Atualizar Makefile
           sed -i "s/^VERSION = .*/VERSION = $NEW/" Makefile
           echo "✅ Makefile atualizado: VERSION = $NEW"
 
-          # Atualizar debian/changelog
+      - name: "Criar changelog para ${{ matrix.series }}"
+        run: |
+          SERIES="${{ matrix.series }}"
+          NEW="${{ needs.bump.outputs.new }}"
+          VERSION_WITH_SERIES="${NEW}~${SERIES}1"
           DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
+
+          # Criar changelog temporário apenas com a entrada para esta série
           TEMP=$(mktemp)
-          printf "launchinfra (%s) noble; urgency=medium\n\n  * Release automatica v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" \
-            "$NEW" "$NEW" "$DATE" > "$TEMP"
-          cat debian/changelog >> "$TEMP"
+          printf "launchinfra (%s) %s; urgency=medium\n\n  * Release automatica v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" \
+            "$VERSION_WITH_SERIES" "$SERIES" "$NEW" "$DATE" > "$TEMP"
+
+          # Adicionar changelog histórico (sem serie nos antigos)
+          tail -n +$(grep -n "^launchinfra" debian/changelog | head -2 | tail -1 | cut -d: -f1) debian/changelog >> "$TEMP" 2>/dev/null || true
+
           mv "$TEMP" debian/changelog
-          echo "✅ debian/changelog atualizado"
 
-          # Nota: cli.sh agora usa get_version() dinamicamente, não precisa atualizar
-          echo "✅ cli.sh usa get_version() dinamicamente (sem hardcode)"
+          echo "✅ debian/changelog criado para $SERIES com versão $VERSION_WITH_SERIES"
 
-          # Verificação de consistência
-          MAKEFILE_VERSION=$(grep '^VERSION' Makefile | awk '{print $3}')
-          CHANGELOG_VERSION=$(head -1 debian/changelog | sed -n 's/launchinfra (\([^)]*\)).*/\1/p')
+      - name: "Instalar dependências"
+        run: |
+          sudo apt update && sudo apt install -y devscripts debhelper build-essential dput
 
-          if [ "$MAKEFILE_VERSION" = "$CHANGELOG_VERSION" ] && [ "$MAKEFILE_VERSION" = "$NEW" ]; then
-            echo "✅ Versões consistentes: Makefile=$MAKEFILE_VERSION, changelog=$CHANGELOG_VERSION, novo=$NEW"
+      - name: "Build source e binário"
+        run: |
+          NEW="${{ needs.bump.outputs.new }}"
+          SERIES="${{ matrix.series }}"
+          VERSION_WITH_SERIES="${NEW}~${SERIES}1"
+
+          make clean
+          dpkg-buildpackage -S -sa -us -uc
+          make build
+          echo "📦 Arquivos gerados:"
+          ls -la ../launchinfra_${VERSION_WITH_SERIES}* || ls -la ../launchinfra_*
+
+      - name: "Garantir Distribution correta no .changes"
+        run: |
+          SERIES="${{ matrix.series }}"
+          NEW="${{ needs.bump.outputs.new }}"
+          VERSION_WITH_SERIES="${NEW}~${SERIES}1"
+
+          if [ -f "../launchinfra_${VERSION_WITH_SERIES}_source.changes" ]; then
+            sed -i "s/^Distribution: .*/Distribution: $SERIES/" \
+              "../launchinfra_${VERSION_WITH_SERIES}_source.changes"
+            echo "✅ Distribution: $SERIES aplicado"
           else
-            echo "❌ ERRO: Versões inconsistentes!"
-            echo "   Makefile: $MAKEFILE_VERSION"
-            echo "   Changelog: $CHANGELOG_VERSION"
-            echo "   Esperado: $NEW"
+            echo "❌ .changes não encontrado!"
+            ls -la ..
             exit 1
           fi
 
-      - name: "Commit versão no repo (no build job)"
+      - name: "Assinar pacote com GPG"
+        run: |
+          NEW="${{ needs.bump.outputs.new }}"
+          SERIES="${{ matrix.series }}"
+          VERSION_WITH_SERIES="${NEW}~${SERIES}1"
+
+          if ! gpg --list-secret-keys BCE80ABE13055B48 2>/dev/null; then
+            echo "❌ Chave GPG não encontrada!"
+            exit 1
+          fi
+          if [ -n "${{ secrets.GPG_PASSPHRASE }}" ]; then
+            debsign -k BCE80ABE13055B48 --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
+              ../launchinfra_${VERSION_WITH_SERIES}_source.changes
+          else
+            debsign -k BCE80ABE13055B48 ../launchinfra_${VERSION_WITH_SERIES}_source.changes
+          fi
+          echo "✅ Pacote assinado para $SERIES"
+
+      - name: "Configurar dput"
+        run: |
+          mkdir -p ~/.dput.d/
+          echo '[ppa:hildemberg986/launchinfra]' > ~/.dput.d/launchinfra.conf
+          echo 'fqdn = ppa.launchpad.net' >> ~/.dput.d/launchinfra.conf
+          echo 'method = ftp' >> ~/.dput.d/launchinfra.conf
+          echo 'incoming = ~hildemberg986/launchinfra/ubuntu/' >> ~/.dput.d/launchinfra.conf
+          echo 'login = anonymous' >> ~/.dput.d/launchinfra.conf
+          echo 'allow_unsigned_uploads = 0' >> ~/.dput.d/launchinfra.conf
+          echo "✅ launchinfra.conf criado"
+
+      - name: "Publicar para ${{ matrix.series }}"
+        run: |
+          NEW="${{ needs.bump.outputs.new }}"
+          SERIES="${{ matrix.series }}"
+          VERSION_WITH_SERIES="${NEW}~${SERIES}1"
+
+          if [ ! -f "../launchinfra_${VERSION_WITH_SERIES}_source.changes" ]; then
+            echo "❌ Arquivo .changes não encontrado!"
+            ls -la ..
+            exit 1
+          fi
+
+          echo "📤 Enviando launchinfra ${VERSION_WITH_SERIES} para ${SERIES}..."
+          dput ppa:hildemberg986/launchinfra "../launchinfra_${VERSION_WITH_SERIES}_source.changes"
+          echo "✅ ${SERIES} publicado!"
+
+      - name: "Salvar artefatos de sucesso"
+        if: success()
+        run: |
+          NEW="${{ needs.bump.outputs.new }}"
+          SERIES="${{ matrix.series }}"
+          VERSION_WITH_SERIES="${NEW}~${SERIES}1"
+
+          mkdir -p artifacts
+          cp ../launchinfra_${VERSION_WITH_SERIES}*.deb artifacts/ 2>/dev/null || true
+          cp ../launchinfra_${VERSION_WITH_SERIES}_*.dsc artifacts/ 2>/dev/null || true
+          cp ../launchinfra_${VERSION_WITH_SERIES}_*.tar.* artifacts/ 2>/dev/null || true
+          echo "✅ Artefatos salvos"
+
+      - name: "Upload artifacts"
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: launchinfra-${{ needs.bump.outputs.new }}-${{ matrix.series }}
+          path: artifacts/
+          retention-days: 7
+
+  # ------------------------------------------------------------------
+  # Job 3: Finalizar - commit, tag, release, gh-pages
+  # ------------------------------------------------------------------
+  finalize:
+    needs: [bump, build-and-publish]
+    if: needs.bump.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "Atualizar versão no Makefile para commit"
+        run: |
+          NEW="${{ needs.bump.outputs.new }}"
+          sed -i "s/^VERSION = .*/VERSION = $NEW/" Makefile
+          echo "✅ Makefile atualizado: VERSION = $NEW"
+
+      - name: "Criar changelog único para repositório"
+        run: |
+          NEW="${{ needs.bump.outputs.new }}"
+          DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
+
+          # Changelog único (sem tilde, sem série específica) para o repositório
+          TEMP=$(mktemp)
+          printf "launchinfra (%s) UNRELEASED; urgency=medium\n\n  * Release automatica v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" \
+            "$NEW" "$NEW" "$DATE" > "$TEMP"
+
+          tail -n +$(grep -n "^launchinfra" debian/changelog | head -1 | cut -d: -f1 | xargs -I {} expr {} + 1) debian/changelog >> "$TEMP" 2>/dev/null || true
+
+          mv "$TEMP" debian/changelog
+          echo "✅ debian/changelog criado para repositório"
+
+      - name: "Commit versão no repo"
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
@@ -151,344 +267,6 @@ jobs:
             echo "✅ Nenhuma mudança para commitar"
           fi
 
-      - name: "Instalar dependências"
-        run: |
-          sudo apt update && sudo apt install -y devscripts debhelper build-essential dput
-
-      - name: "Build source e binário"
-        run: |
-          NEW="${{ needs.bump.outputs.new }}"
-          make clean
-          dpkg-buildpackage -S -sa -us -uc
-          make build
-          echo "📦 Arquivos gerados:"
-          ls -la ../launchinfra_${NEW}_*
-
-      - name: "Garantir Distribution noble no .changes"
-        run: |
-          NEW="${{ needs.bump.outputs.new }}"
-          if [ -f "../launchinfra_${NEW}_source.changes" ]; then
-            sed -i "s/^Distribution: .*/Distribution: noble/" \
-              "../launchinfra_${NEW}_source.changes"
-            echo "✅ Distribution: noble aplicado"
-          else
-            echo "❌ .changes não encontrado!"
-            ls -la ..
-            exit 1
-          fi
-
-      - name: "Assinar pacote com GPG"
-        run: |
-          NEW="${{ needs.bump.outputs.new }}"
-          if ! gpg --list-secret-keys BCE80ABE13055B48 2>/dev/null; then
-            echo "❌ Chave GPG não encontrada!"
-            exit 1
-          fi
-          if [ -n "${{ secrets.GPG_PASSPHRASE }}" ]; then
-            debsign -k BCE80ABE13055B48 --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
-              ../launchinfra_${NEW}_source.changes
-          else
-            debsign -k BCE80ABE13055B48 ../launchinfra_${NEW}_source.changes
-          fi
-          echo "✅ Pacote assinado"
-
-      - name: "Configurar dput"
-        run: |
-          mkdir -p ~/.dput.d/
-          echo '[ppa:hildemberg986/launchinfra]' > ~/.dput.d/launchinfra.conf
-          echo 'fqdn = ppa.launchpad.net' >> ~/.dput.d/launchinfra.conf
-          echo 'method = ftp' >> ~/.dput.d/launchinfra.conf
-          echo 'incoming = ~hildemberg986/launchinfra/ubuntu/' >> ~/.dput.d/launchinfra.conf
-          echo 'login = anonymous' >> ~/.dput.d/launchinfra.conf
-          echo 'allow_unsigned_uploads = 0' >> ~/.dput.d/launchinfra.conf
-          echo "✅ launchinfra.conf criado em ~/.dput.d/"
-
-      - name: "Copiar arquivos para o diretório atual com fallback"
-        run: |
-          NEW="${{ needs.bump.outputs.new }}"
-          echo "🔍 Procurando arquivos para copiar..."
-
-          # Tentativa 1: Copiar com wildcard
-          if cp ../launchinfra_${NEW}* . 2>/dev/null; then
-            echo "✅ Arquivos copiados com sucesso (wildcard)"
-          else
-            echo "⚠️ Wildcard falhou, tentando copiar arquivos específicos..."
-            
-            # Tentativa 2: Copiar arquivos específicos
-            for file in ../launchinfra_${NEW}_source.changes ../launchinfra_${NEW}_*.dsc ../launchinfra_${NEW}_*.tar.* ../launchinfra_${NEW}_*.deb; do
-              if [ -f "$file" ]; then
-                cp "$file" . && echo "✅ Copiado: $(basename $file)"
-              fi
-            done
-          fi
-
-          # SEMPRE copiar o dput.conf (verificar se existe)
-          if [ -f ~/.dput.d/launchinfra.conf ]; then
-            cp ~/.dput.d/launchinfra.conf .
-            echo "✅ launchinfra.conf copiado"
-          else
-            echo "⚠️ launchinfra.conf não encontrado em ~/.dput.d/, criando..."
-            echo '[ppa:hildemberg986/launchinfra]' > launchinfra.conf
-            echo 'fqdn = ppa.launchpad.net' >> launchinfra.conf
-            echo 'method = ftp' >> launchinfra.conf
-            echo 'incoming = ~hildemberg986/launchinfra/ubuntu/' >> launchinfra.conf
-            echo 'login = anonymous' >> launchinfra.conf
-            echo 'allow_unsigned_uploads = 0' >> launchinfra.conf
-            echo "✅ launchinfra.conf criado"
-          fi
-
-          echo "📁 Arquivos no diretório atual:"
-          ls -la
-
-      - name: "Verificar arquivos antes do upload"
-        run: |
-          echo "🔍 Verificando arquivos necessários..."
-          MISSING=0
-
-          for file in launchinfra_*.changes launchinfra_*.dsc launchinfra_*.tar.*; do
-            if [ -f "$file" ]; then
-              echo "✅ $file encontrado"
-            else
-              echo "❌ $file não encontrado!"
-              MISSING=1
-            fi
-          done
-
-          # Verificar launchinfra.conf
-          if [ -f "launchinfra.conf" ]; then
-            echo "✅ launchinfra.conf encontrado"
-          else
-            echo "❌ launchinfra.conf não encontrado!"
-            MISSING=1
-          fi
-
-          if [ $MISSING -eq 1 ]; then
-            echo "⚠️ Alguns arquivos estão faltando, mas continuando..."
-          fi
-
-      - name: "Upload artifacts"
-        uses: actions/upload-artifact@v4
-        with:
-          name: launchinfra-${{ needs.bump.outputs.new }}
-          path: |
-            launchinfra_${{ needs.bump.outputs.new }}*
-            launchinfra.conf
-          retention-days: 7
-
-  # ------------------------------------------------------------------
-  # Job 3: Publicar para Noble (com verificações)
-  # ------------------------------------------------------------------
-  publish-noble:
-    needs: [bump, build]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: launchinfra-${{ needs.bump.outputs.new }}
-          path: ./artifacts
-
-      - name: "Importar GPG"
-        uses: crazy-max/ghaction-import-gpg@v6
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          fingerprint: BCE80ABE13055B48
-
-      - name: "Verificar artefatos baixados"
-        run: |
-          echo "🔍 Verificando artefatos..."
-          ls -la ./artifacts/
-          if [ -z "$(ls -A ./artifacts/)" ]; then
-            echo "❌ Nenhum artefato encontrado!"
-            exit 1
-          fi
-          echo "✅ Artefatos encontrados"
-
-      - name: "Instalar dput e devscripts"
-        run: |
-          sudo apt update
-          sudo apt install -y dput devscripts
-
-      - name: "Enviar para PPA noble"
-        run: |
-          mkdir -p ~/.dput.d/
-
-          # Criar dput.conf diretamente
-          echo '[ppa:hildemberg986/launchinfra]' > ~/.dput.d/launchinfra.conf
-          echo 'fqdn = ppa.launchpad.net' >> ~/.dput.d/launchinfra.conf
-          echo 'method = ftp' >> ~/.dput.d/launchinfra.conf
-          echo 'incoming = ~hildemberg986/launchinfra/ubuntu/' >> ~/.dput.d/launchinfra.conf
-          echo 'login = anonymous' >> ~/.dput.d/launchinfra.conf
-          echo 'allow_unsigned_uploads = 0' >> ~/.dput.d/launchinfra.conf
-          echo "✅ launchinfra.conf criado"
-
-          NEW="${{ needs.bump.outputs.new }}"
-
-          # Verificar se o .changes existe
-          if [ ! -f "./artifacts/launchinfra_${NEW}_source.changes" ]; then
-            echo "❌ Arquivo .changes não encontrado!"
-            ls -la ./artifacts/
-            exit 1
-          fi
-
-          echo "📤 Enviando launchinfra ${NEW} para noble..."
-          dput ppa:hildemberg986/launchinfra "./artifacts/launchinfra_${NEW}_source.changes"
-          echo "✅ Noble publicado!"
-
-  # ------------------------------------------------------------------
-  # Job 4: Publicar para outras séries (com verificações)
-  # ------------------------------------------------------------------
-  publish-other-series:
-    needs: [bump, publish-noble]
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        series: [focal, jammy, resolute]
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: launchinfra-${{ needs.bump.outputs.new }}
-          path: ./artifacts
-
-      - name: "Importar GPG"
-        uses: crazy-max/ghaction-import-gpg@v6
-        with:
-          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
-          passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          fingerprint: BCE80ABE13055B48
-
-      - name: "Verificar artefatos baixados"
-        run: |
-          echo "🔍 Verificando artefatos..."
-          ls -la ./artifacts/
-          if [ -z "$(ls -A ./artifacts/)" ]; then
-            echo "❌ Nenhum artefato encontrado!"
-            exit 1
-          fi
-          echo "✅ Artefatos encontrados"
-
-      - name: "Instalar dput e devscripts"
-        run: |
-          sudo apt update
-          sudo apt install -y dput devscripts
-
-      - name: "Configurar dput"
-        run: |
-          mkdir -p ~/.dput.d/
-          echo '[ppa:hildemberg986/launchinfra]' > ~/.dput.d/launchinfra.conf
-          echo 'fqdn = ppa.launchpad.net' >> ~/.dput.d/launchinfra.conf
-          echo 'method = ftp' >> ~/.dput.d/launchinfra.conf
-          echo 'incoming = ~hildemberg986/launchinfra/ubuntu/' >> ~/.dput.d/launchinfra.conf
-          echo 'login = anonymous' >> ~/.dput.d/launchinfra.conf
-          echo 'allow_unsigned_uploads = 0' >> ~/.dput.d/launchinfra.conf
-          echo "✅ launchinfra.conf criado em ~/.dput.d/"
-
-      - name: "Preparar arquivos para ${{ matrix.series }}"
-        run: |
-          SERIES="${{ matrix.series }}"
-          NEW="${{ needs.bump.outputs.new }}"
-          NEW_VERSION="${NEW}-0${SERIES}1"
-
-          echo "🔄 Convertendo para $SERIES (versão: $NEW_VERSION)"
-
-          # Verificar se os arquivos existem
-          if [ ! -f "./artifacts/launchinfra_${NEW}_source.changes" ]; then
-            echo "❌ Arquivo .changes não encontrado!"
-            ls -la ./artifacts/
-            exit 1
-          fi
-
-          # Copiar arquivos com nova versão
-          for file in ./artifacts/launchinfra_${NEW}_*; do
-            if [ -f "$file" ]; then
-              NEW_FILE="./artifacts/${file##*/}"
-              NEW_FILE="${NEW_FILE/${NEW}/${NEW_VERSION}}"
-              cp "$file" "$NEW_FILE"
-              echo "✅ Copiado: $(basename $file) → $(basename $NEW_FILE)"
-            fi
-          done
-
-          # Remover assinatura antiga do .changes
-          sed -i '/^-----BEGIN PGP SIGNATURE-----/,/^-----END PGP SIGNATURE-----/d' "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
-
-          # Atualizar versão e distribuição ANTES de re-assinar
-          sed -i "s/^Version: .*/Version: $NEW_VERSION/" "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
-          sed -i "s/^Distribution: .*/Distribution: $SERIES/" "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
-
-          # Atualizar .dsc se existir
-          if [ -f "./artifacts/launchinfra_${NEW_VERSION}.dsc" ]; then
-            sed -i "/^-----BEGIN PGP SIGNATURE-----/,/^-----END PGP SIGNATURE-----/d" "./artifacts/launchinfra_${NEW_VERSION}.dsc"
-            sed -i "s/^Version: .*/Version: $NEW_VERSION/" "./artifacts/launchinfra_${NEW_VERSION}.dsc"
-          fi
-
-          echo "✅ Distribution alterado para $SERIES"
-          echo "📁 Arquivos preparados:"
-          ls -la ./artifacts/launchinfra_${NEW_VERSION}*
-
-      - name: "Re-assinar pacote para ${{ matrix.series }}"
-        run: |
-          SERIES="${{ matrix.series }}"
-          NEW="${{ needs.bump.outputs.new }}"
-          NEW_VERSION="${NEW}-0${SERIES}1"
-
-          # Verificar chave GPG
-          if ! gpg --list-secret-keys BCE80ABE13055B48 2>/dev/null; then
-            echo "❌ Chave GPG não encontrada!"
-            exit 1
-          fi
-
-          # Verificar se o .changes existe
-          if [ ! -f "./artifacts/launchinfra_${NEW_VERSION}_source.changes" ]; then
-            echo "❌ Arquivo .changes não encontrado!"
-            ls -la ./artifacts/
-            exit 1
-          fi
-
-          echo "🔐 Assinando para $SERIES..."
-          debsign -k BCE80ABE13055B48 --re-sign -p "gpg --passphrase ${{ secrets.GPG_PASSPHRASE }}" \
-            "./artifacts/launchinfra_${NEW_VERSION}_source.changes" || \
-          debsign -k BCE80ABE13055B48 --re-sign "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
-
-          echo "✅ Assinado para $SERIES"
-
-      - name: "Upload para PPA ${{ matrix.series }}"
-        run: |
-          SERIES="${{ matrix.series }}"
-          NEW="${{ needs.bump.outputs.new }}"
-          NEW_VERSION="${NEW}-0${SERIES}1"
-
-          echo "📤 Enviando launchinfra ${NEW_VERSION} para ${SERIES}..."
-          dput ppa:hildemberg986/launchinfra "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
-          echo "✅ ${SERIES} publicado!"
-
-  # ------------------------------------------------------------------
-  # Job 5: Finalizar (com verificações)
-  # ------------------------------------------------------------------
-  finalize:
-    needs: [bump, build, publish-noble, publish-other-series]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: launchinfra-${{ needs.bump.outputs.new }}
-          path: ./artifacts
-
-      - name: "Verificar artefatos"
-        run: |
-          echo "🔍 Verificando artefatos para finalização..."
-          ls -la ./artifacts/
-          if [ -z "$(ls -A ./artifacts/)" ]; then
-            echo "⚠️ Nenhum artefato encontrado para finalização"
-          else
-            echo "✅ Artefatos encontrados"
-          fi
-
       - name: "Criar tag"
         run: |
           git config user.name "github-actions"
@@ -498,16 +276,23 @@ jobs:
           if ! git rev-parse "v${NEW}" >/dev/null 2>&1; then
             git tag -a "v${NEW}" -m "Release v${NEW}"
             git push origin "v${NEW}"
+            echo "✅ Tag v${NEW} criada"
           else
             echo "✅ Tag v${NEW} já existe"
           fi
+
+      - name: "Download all artifacts"
+        uses: actions/download-artifact@v4
+        with:
+          path: ./all-artifacts
 
       - name: "GitHub Release"
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.bump.outputs.new }}
           name: v${{ needs.bump.outputs.new }}
-          files: ./artifacts/launchinfra_${{ needs.bump.outputs.new }}*.deb
+          files: |
+            ./all-artifacts/*/*.deb
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -523,8 +308,8 @@ jobs:
           NEW="${{ needs.bump.outputs.new }}"
           mkdir -p new_repo/pool/main/l/launchinfra
 
-          # Procurar o .deb com wildcard
-          DEB_FILE=$(ls ./artifacts/launchinfra_${NEW}_*.deb 2>/dev/null | head -1)
+          # Procurar o primeiro .deb encontrado
+          DEB_FILE=$(find ./all-artifacts -name "launchinfra_*.deb" 2>/dev/null | head -1)
           if [ -n "$DEB_FILE" ] && [ -f "$DEB_FILE" ]; then
             cp "$DEB_FILE" new_repo/pool/main/l/launchinfra/launchinfra.deb
             echo "✅ .deb copiado: $DEB_FILE"
