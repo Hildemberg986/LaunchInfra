@@ -249,6 +249,13 @@ jobs:
           name: launchinfra-${{ needs.bump.outputs.new }}
           path: ./artifacts
 
+      - name: "Importar GPG"
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          fingerprint: BCE80ABE13055B48
+
       - name: "Verificar artefatos baixados"
         run: |
           echo "🔍 Verificando artefatos..."
@@ -259,19 +266,10 @@ jobs:
           fi
           echo "✅ Artefatos encontrados"
 
-      - name: "Instalar dput e configurar GPG"
+      - name: "Instalar dput"
         run: |
           sudo apt update
           sudo apt install -y dput
-
-          # Importar chave pública via keyserver com fallback
-          echo "🔑 Importando chave GPG..."
-          if gpg --keyserver keyserver.ubuntu.com --recv-keys BCE80ABE13055B48; then
-            echo "✅ Chave importada do keyserver"
-          else
-            echo "⚠️ Falha no keyserver, tentando com hkp..."
-            gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys BCE80ABE13055B48 || true
-          fi
 
       - name: "Enviar para PPA noble"
         run: |
@@ -315,6 +313,13 @@ jobs:
           name: launchinfra-${{ needs.bump.outputs.new }}
           path: ./artifacts
 
+      - name: "Importar GPG"
+        uses: crazy-max/ghaction-import-gpg@v6
+        with:
+          gpg_private_key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          fingerprint: BCE80ABE13055B48
+
       - name: "Verificar artefatos baixados"
         run: |
           echo "🔍 Verificando artefatos..."
@@ -325,18 +330,10 @@ jobs:
           fi
           echo "✅ Artefatos encontrados"
 
-      - name: "Instalar dput e configurar GPG"
+      - name: "Instalar dput"
         run: |
           sudo apt update
           sudo apt install -y dput
-
-          echo "🔑 Importando chave GPG..."
-          if gpg --keyserver keyserver.ubuntu.com --recv-keys BCE80ABE13055B48; then
-            echo "✅ Chave importada do keyserver"
-          else
-            echo "⚠️ Falha no keyserver, tentando com hkp..."
-            gpg --keyserver hkp://keyserver.ubuntu.com --recv-keys BCE80ABE13055B48 || true
-          fi
 
       - name: "Configurar dput"
         run: |
