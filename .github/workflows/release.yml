@@ -163,6 +163,7 @@ jobs:
           echo 'incoming = ~hildemberg986/launchinfra/ubuntu/' >> ~/.dput.d/launchinfra.conf
           echo 'login = anonymous' >> ~/.dput.d/launchinfra.conf
           echo 'allow_unsigned_uploads = 0' >> ~/.dput.d/launchinfra.conf
+          echo "✅ launchinfra.conf criado em ~/.dput.d/"
 
       - name: "Copiar arquivos para o diretório atual com fallback"
         run: |
@@ -183,8 +184,20 @@ jobs:
             done
           fi
 
-          # Sempre copiar o dput.conf
-          cp ~/.dput.d/launchinfra.conf .
+          # SEMPRE copiar o dput.conf (verificar se existe)
+          if [ -f ~/.dput.d/launchinfra.conf ]; then
+            cp ~/.dput.d/launchinfra.conf .
+            echo "✅ launchinfra.conf copiado"
+          else
+            echo "⚠️ launchinfra.conf não encontrado em ~/.dput.d/, criando..."
+            echo '[ppa:hildemberg986/launchinfra]' > launchinfra.conf
+            echo 'fqdn = ppa.launchpad.net' >> launchinfra.conf
+            echo 'method = ftp' >> launchinfra.conf
+            echo 'incoming = ~hildemberg986/launchinfra/ubuntu/' >> launchinfra.conf
+            echo 'login = anonymous' >> launchinfra.conf
+            echo 'allow_unsigned_uploads = 0' >> launchinfra.conf
+            echo "✅ launchinfra.conf criado"
+          fi
 
           echo "📁 Arquivos no diretório atual:"
           ls -la
@@ -203,6 +216,14 @@ jobs:
             fi
           done
 
+          # Verificar launchinfra.conf
+          if [ -f "launchinfra.conf" ]; then
+            echo "✅ launchinfra.conf encontrado"
+          else
+            echo "❌ launchinfra.conf não encontrado!"
+            MISSING=1
+          fi
+
           if [ $MISSING -eq 1 ]; then
             echo "⚠️ Alguns arquivos estão faltando, mas continuando..."
           fi
@@ -213,6 +234,7 @@ jobs:
           name: launchinfra-${{ needs.bump.outputs.new }}
           path: |
             launchinfra_${{ needs.bump.outputs.new }}*
+            launchinfra.conf
           retention-days: 7
 
   # ------------------------------------------------------------------
@@ -254,19 +276,27 @@ jobs:
       - name: "Enviar para PPA noble"
         run: |
           mkdir -p ~/.dput.d/
-          cp ./artifacts/launchinfra.conf ~/.dput.d/launchinfra.conf
-          cd ./artifacts
+
+          # Criar dput.conf diretamente
+          echo '[ppa:hildemberg986/launchinfra]' > ~/.dput.d/launchinfra.conf
+          echo 'fqdn = ppa.launchpad.net' >> ~/.dput.d/launchinfra.conf
+          echo 'method = ftp' >> ~/.dput.d/launchinfra.conf
+          echo 'incoming = ~hildemberg986/launchinfra/ubuntu/' >> ~/.dput.d/launchinfra.conf
+          echo 'login = anonymous' >> ~/.dput.d/launchinfra.conf
+          echo 'allow_unsigned_uploads = 0' >> ~/.dput.d/launchinfra.conf
+          echo "✅ launchinfra.conf criado"
+
           NEW="${{ needs.bump.outputs.new }}"
 
           # Verificar se o .changes existe
-          if [ ! -f "launchinfra_${NEW}_source.changes" ]; then
+          if [ ! -f "./artifacts/launchinfra_${NEW}_source.changes" ]; then
             echo "❌ Arquivo .changes não encontrado!"
-            ls -la
+            ls -la ./artifacts/
             exit 1
           fi
 
           echo "📤 Enviando launchinfra ${NEW} para noble..."
-          dput ppa:hildemberg986/launchinfra launchinfra_${NEW}_source.changes
+          dput ppa:hildemberg986/launchinfra "./artifacts/launchinfra_${NEW}_source.changes"
           echo "✅ Noble publicado!"
 
   # ------------------------------------------------------------------
@@ -311,11 +341,16 @@ jobs:
       - name: "Configurar dput"
         run: |
           mkdir -p ~/.dput.d/
-          cp ./artifacts/launchinfra.conf ~/.dput.d/launchinfra.conf
+          echo '[ppa:hildemberg986/launchinfra]' > ~/.dput.d/launchinfra.conf
+          echo 'fqdn = ppa.launchpad.net' >> ~/.dput.d/launchinfra.conf
+          echo 'method = ftp' >> ~/.dput.d/launchinfra.conf
+          echo 'incoming = ~hildemberg986/launchinfra/ubuntu/' >> ~/.dput.d/launchinfra.conf
+          echo 'login = anonymous' >> ~/.dput.d/launchinfra.conf
+          echo 'allow_unsigned_uploads = 0' >> ~/.dput.d/launchinfra.conf
+          echo "✅ launchinfra.conf criado em ~/.dput.d/"
 
       - name: "Preparar arquivos para ${{ matrix.series }}"
         run: |
-          cd ./artifacts
           SERIES="${{ matrix.series }}"
           NEW="${{ needs.bump.outputs.new }}"
           NEW_VERSION="${NEW}-0${SERIES}1"
@@ -323,35 +358,37 @@ jobs:
           echo "🔄 Convertendo para $SERIES (versão: $NEW_VERSION)"
 
           # Verificar se os arquivos existem
-          if [ ! -f "launchinfra_${NEW}_source.changes" ]; then
+          if [ ! -f "./artifacts/launchinfra_${NEW}_source.changes" ]; then
             echo "❌ Arquivo .changes não encontrado!"
-            ls -la
+            ls -la ./artifacts/
             exit 1
           fi
 
           # Copiar arquivos com nova versão
-          for file in launchinfra_${NEW}_*; do
+          for file in ./artifacts/launchinfra_${NEW}_*; do
             if [ -f "$file" ]; then
-              NEW_FILE="${file/${NEW}/${NEW_VERSION}}"
+              NEW_FILE="./artifacts/${file##*/}"
+              NEW_FILE="${NEW_FILE/${NEW}/${NEW_VERSION}}"
               cp "$file" "$NEW_FILE"
-              echo "✅ Copiado: $file → $NEW_FILE"
+              echo "✅ Copiado: $(basename $file) → $(basename $NEW_FILE)"
             fi
           done
 
           # Atualizar .changes
-          sed -i "s/^Version: .*/Version: $NEW_VERSION/" launchinfra_${NEW_VERSION}_source.changes
-          sed -i "s/^Distribution: .*/Distribution: $SERIES/" launchinfra_${NEW_VERSION}_source.changes
+          sed -i "s/^Version: .*/Version: $NEW_VERSION/" "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
+          sed -i "s/^Distribution: .*/Distribution: $SERIES/" "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
 
           # Atualizar .dsc se existir
-          if [ -f "launchinfra_${NEW_VERSION}.dsc" ]; then
-            sed -i "s/^Version: .*/Version: $NEW_VERSION/" launchinfra_${NEW_VERSION}.dsc
+          if [ -f "./artifacts/launchinfra_${NEW_VERSION}.dsc" ]; then
+            sed -i "s/^Version: .*/Version: $NEW_VERSION/" "./artifacts/launchinfra_${NEW_VERSION}.dsc"
           fi
 
           echo "✅ Distribution alterado para $SERIES"
+          echo "📁 Arquivos preparados:"
+          ls -la ./artifacts/launchinfra_${NEW_VERSION}*
 
       - name: "Re-assinar pacote para ${{ matrix.series }}"
         run: |
-          cd ./artifacts
           SERIES="${{ matrix.series }}"
           NEW="${{ needs.bump.outputs.new }}"
           NEW_VERSION="${NEW}-0${SERIES}1"
@@ -363,30 +400,29 @@ jobs:
           fi
 
           # Verificar se o .changes existe
-          if [ ! -f "launchinfra_${NEW_VERSION}_source.changes" ]; then
+          if [ ! -f "./artifacts/launchinfra_${NEW_VERSION}_source.changes" ]; then
             echo "❌ Arquivo .changes não encontrado!"
-            ls -la
+            ls -la ./artifacts/
             exit 1
           fi
 
           echo "🔐 Re-assinando para $SERIES..."
           if [ -n "${{ secrets.GPG_PASSPHRASE }}" ]; then
             debsign -k BCE80ABE13055B48 --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
-              launchinfra_${NEW_VERSION}_source.changes
+              "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
           else
-            debsign -k BCE80ABE13055B48 launchinfra_${NEW_VERSION}_source.changes
+            debsign -k BCE80ABE13055B48 "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
           fi
           echo "✅ Re-assinado para $SERIES"
 
       - name: "Upload para PPA ${{ matrix.series }}"
         run: |
-          cd ./artifacts
           SERIES="${{ matrix.series }}"
           NEW="${{ needs.bump.outputs.new }}"
           NEW_VERSION="${NEW}-0${SERIES}1"
 
           echo "📤 Enviando launchinfra ${NEW_VERSION} para ${SERIES}..."
-          dput ppa:hildemberg986/launchinfra launchinfra_${NEW_VERSION}_source.changes
+          dput ppa:hildemberg986/launchinfra "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
           echo "✅ ${SERIES} publicado!"
 
   # ------------------------------------------------------------------
