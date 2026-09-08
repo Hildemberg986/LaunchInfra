@@ -371,12 +371,16 @@ jobs:
             fi
           done
 
-          # Atualizar .changes
+          # Remover assinatura antiga do .changes
+          sed -i '/^-----BEGIN PGP SIGNATURE-----/,/^-----END PGP SIGNATURE-----/d' "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
+
+          # Atualizar versão e distribuição ANTES de re-assinar
           sed -i "s/^Version: .*/Version: $NEW_VERSION/" "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
           sed -i "s/^Distribution: .*/Distribution: $SERIES/" "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
 
           # Atualizar .dsc se existir
           if [ -f "./artifacts/launchinfra_${NEW_VERSION}.dsc" ]; then
+            sed -i "/^-----BEGIN PGP SIGNATURE-----/,/^-----END PGP SIGNATURE-----/d" "./artifacts/launchinfra_${NEW_VERSION}.dsc"
             sed -i "s/^Version: .*/Version: $NEW_VERSION/" "./artifacts/launchinfra_${NEW_VERSION}.dsc"
           fi
 
@@ -403,14 +407,12 @@ jobs:
             exit 1
           fi
 
-          echo "🔐 Re-assinando para $SERIES..."
-          if [ -n "${{ secrets.GPG_PASSPHRASE }}" ]; then
-            debsign -k BCE80ABE13055B48 --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
-              "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
-          else
-            debsign -k BCE80ABE13055B48 "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
-          fi
-          echo "✅ Re-assinado para $SERIES"
+          echo "🔐 Assinando para $SERIES..."
+          debsign -k BCE80ABE13055B48 --re-sign -p "gpg --passphrase ${{ secrets.GPG_PASSPHRASE }}" \
+            "./artifacts/launchinfra_${NEW_VERSION}_source.changes" || \
+          debsign -k BCE80ABE13055B48 --re-sign "./artifacts/launchinfra_${NEW_VERSION}_source.changes"
+
+          echo "✅ Assinado para $SERIES"
 
       - name: "Upload para PPA ${{ matrix.series }}"
         run: |
