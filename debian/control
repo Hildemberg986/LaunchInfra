@@ -2,7 +2,7 @@ Source: launchinfra
 Section: utils
 Priority: optional
 Maintainer: Hildemberg Eling <hildembergeling@gmail.com>
-Build-Depends: debhelper (>= 13), bash-completion
+Build-Depends: debhelper (>= 12), bash-completion
 Standards-Version: 4.5.0
 Homepage: https://github.com/Hildemberg986/LaunchInfra
 XSBC-Original-Maintainer: Hildemberg Eling <hildembergeling@gmail.com>
