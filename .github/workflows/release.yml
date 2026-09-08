@@ -104,14 +104,36 @@ jobs:
       - name: "Atualizar versão no código"
         run: |
           NEW="${{ needs.bump.outputs.new }}"
-          sed -i "s/^VERSION *=.*/VERSION = $NEW/" Makefile
+
+          # Atualizar Makefile
+          sed -i "s/^VERSION = .*/VERSION = $NEW/" Makefile
+          echo "✅ Makefile atualizado: VERSION = $NEW"
+
+          # Atualizar debian/changelog
           DATE=$(LC_TIME=C date -u +'%a, %d %b %Y %H:%M:%S +0000')
           TEMP=$(mktemp)
           printf "launchinfra (%s) noble; urgency=medium\n\n  * Release automatica v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" \
             "$NEW" "$NEW" "$DATE" > "$TEMP"
           cat debian/changelog >> "$TEMP"
           mv "$TEMP" debian/changelog
-          sed -i 's/echo "LaunchInfra v.*/echo "LaunchInfra v'"$NEW"'"/' src/lib/cli.sh
+          echo "✅ debian/changelog atualizado"
+
+          # Nota: cli.sh agora usa get_version() dinamicamente, não precisa atualizar
+          echo "✅ cli.sh usa get_version() dinamicamente (sem hardcode)"
+
+          # Verificação de consistência
+          MAKEFILE_VERSION=$(grep '^VERSION' Makefile | awk '{print $3}')
+          CHANGELOG_VERSION=$(head -1 debian/changelog | sed -n 's/launchinfra (\([^)]*\)).*/\1/p')
+
+          if [ "$MAKEFILE_VERSION" = "$CHANGELOG_VERSION" ] && [ "$MAKEFILE_VERSION" = "$NEW" ]; then
+            echo "✅ Versões consistentes: Makefile=$MAKEFILE_VERSION, changelog=$CHANGELOG_VERSION, novo=$NEW"
+          else
+            echo "❌ ERRO: Versões inconsistentes!"
+            echo "   Makefile: $MAKEFILE_VERSION"
+            echo "   Changelog: $CHANGELOG_VERSION"
+            echo "   Esperado: $NEW"
+            exit 1
+          fi
 
       - name: "Instalar dependências"
         run: |

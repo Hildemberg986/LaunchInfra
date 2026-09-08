@@ -1,70 +1,21 @@
-# Licença de Uso Personalizada - LaunchInfra
-# Copyright (c) 2024 Hildemberg Eling de Araújo Lucena
+MIT License
 
-## 1. Direitos Reservados
+Copyright (c) 2024-2026 Hildemberg Eling de Araujo Lucena
 
-Todos os direitos reservados. Este software é propriedade intelectual de 
-**Hildemberg Eling de Araújo Lucena**.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
 
-## 2. Permissões Concedidas
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
 
-Sob os termos desta licença, você **pode**:
-
-✅ **USAR** - Utilizar o software para fins pessoais, educacionais ou comerciais
-✅ **MODIFICAR** - Adaptar o código para suas necessidades específicas
-✅ **EXECUTAR** - Executar o software em seus próprios servidores/sistemas
-✅ **COPIAR** - Fazer cópias para backup dentro da sua organização
-
-## 3. Restrições
-
-Você **NÃO PODE**:
-
-❌ **REDISTRIBUIR** - Distribuir, compartilhar ou disponibilizar o código fonte
-❌ **PUBLICAR** - Publicar o software em qualquer repositório público (GitHub, GitLab, etc)
-❌ **VENDER** - Vender ou comercializar o software, modificado ou não
-❌ **SUB-LICENCIAR** - Conceder sublicenças a terceiros
-❌ **REMOVER CRÉDITOS** - Remover ou ocultar o aviso de copyright e autoria
-
-## 4. Condições Obrigatórias
-
-Ao utilizar este software, você **concorda em**:
-
-📌 Manter o aviso de copyright completo em todas as cópias
-📌 Manter o cabeçalho de autoria nos arquivos fonte
-📌 Em interfaces web, incluir link para https://github.com/Hildemberg986/LaunchInfra
-📌 Notificar o autor sobre o uso do software (email: hildembergeling@gmail.com)
-📌 Não remover a cláusula de restrição de redistribuição
-
-## 5. Solicitação de Redistribuição
-
-Caso deseje redistribuir este software, você **deve obter autorização prévia por escrito** do autor:
-
-- **Email:** hildembergeling@gmail.com
-- **Assunto:** Solicitação de redistribuição - LaunchInfra
-
-O autor pode, a seu critério:
-- Conceder permissão para redistribuição
-- Negar o pedido
-- Estabelecer termos específicos para redistribuição
-
-## 6. Isenção de Garantia
-
-ESTE SOFTWARE É FORNECIDO "COMO ESTÁ", SEM GARANTIAS DE QUALQUER TIPO, EXPRESSAS OU IMPLÍCITAS, INCLUINDO, MAS NÃO SE LIMITANDO A, GARANTIAS DE COMERCIALIZAÇÃO, ADEQUAÇÃO A UM DETERMINADO FIM E NÃO VIOLAÇÃO. EM NENHUM CASO O AUTOR OU DETENTORES DOS DIREITOS AUTORAIS SERÃO RESPONSÁVEIS POR QUALQUER RECLAMAÇÃO, DANOS OU OUTRA RESPONSABILIDADE, SEJA EM AÇÃO DE CONTRATO, ATO ILÍCITO OU DE OUTRA FORMA, DECORRENTE DE, OU EM CONEXÃO COM O SOFTWARE OU O USO OU OUTRAS NEGOCIAÇÕES NO SOFTWARE.
-
-## 7. Violações
-
-O não cumprimento destes termos resultará em:
-- Imediata revogação das permissões concedidas
-- Possíveis ações legais por violação de direitos autorais
-- Obrigação de remover todo o software derivado
-
-## 8. Contato do Autor
-
-- **Nome:** Hildemberg Eling de Araújo Lucena
-- **Email:** hildembergeling@gmail.com
-- **GitHub:** https://github.com/Hildemberg986
-- **Projeto:** https://github.com/Hildemberg986/LaunchInfra
-
----
-
-**© 2024 Hildemberg Eling de Araújo Lucena. Todos os direitos reservados.**
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

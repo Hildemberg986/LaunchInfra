@@ -1,10 +1,30 @@
 # LaunchInfra
 
-> Ferramenta para criar e gerenciar sites e proxies Nginx com suporte a Let's Encrypt.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Open Source](https://img.shields.io/badge/Open%20Source-FREE-green.svg)](https://opensource.org/)
+[![Ubuntu](https://img.shields.io/badge/Ubuntu-18.04%2B-E95420?logo=ubuntu)](https://ubuntu.com)
 
-**Versão atual:** 2.4.1
+> **Ferramenta gratuita e open source** para criar e gerenciar sites e proxies Nginx com suporte a Let's Encrypt.
 
 **Compatibilidade:** Ubuntu 18.04 (Bionic Beaver) até 24.04 (Noble Numbat) e variantes (Kubuntu, Xubuntu, Lubuntu, etc). Suporta systemd e sysvinit.
+
+---
+
+## 🎯 Sobre este Projeto
+
+LaunchInfra é uma ferramenta **100% gratuita** e de **código aberto** criada para facilitar o gerenciamento de projetos web em servidores Linux. Qualquer pessoa pode usar, modificar e distribuir o código respeitando a licença MIT.
+
+### ✨ Desenvolvido por
+
+**Hildemberg Eling de Araujo Lucena**
+
+### 🙏 Agradecimentos
+
+- **Ubuntu** - Base do sistema operacional suportado
+- **Nginx** - Servidor web e proxy reverso
+- **Let's Encrypt** - Certificados SSL/TLS gratuitos
+- **Certbot** - Gerenciador de certificados
+- **Community Open Source** - Pelos feedback e contribuições
 
 ---
 
@@ -414,6 +434,43 @@ scripts/
 
 ## Licença
 
-Copyright (c) 2024-2026 Hildemberg Eling de Araujo Lucena.
+**LaunchInfra é distribuído sob a Licença MIT (MIT License)**
 
-Uso permitido. **Redistribuição PROIBIDA** sem autorização expressa do autor.
+Copyright (c) 2024-2026 Hildemberg Eling de Araujo Lucena
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+### 📋 O que você pode fazer:
+
+✅ **Usar gratuitamente** - Pessoal ou comercial
+✅ **Modificar** - Adaptar para suas necessidades
+✅ **Distribuir** - Compartilhar com outros
+✅ **Usar em código privado** - Sem obrigação de compartilhar
+
+### ⚖️ Suas obrigações:
+
+📌 **Incluir a licença** - Quando distribuir o software
+📌 **Manter os créditos** - Indicar o autor original (Hildemberg Eling)
+📌 **Sem garantia** - Use por sua conta e risco
+
+---
+
+Para mais informações sobre a licença MIT, visite: https://opensource.org/licenses/MIT
