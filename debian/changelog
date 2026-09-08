@@ -1,4 +1,9 @@
-launchinfra (2.5.0) noble; urgency=medium
+launchinfra (2.6.1) UNRELEASED; urgency=medium
+
+  * Release automatica v2.6.1
+
+ -- Hildemberg Eling <hildembergeling@gmail.com>  Tue, 08 Sep 2026 14:42:06 +0000
+
 
   * Release automatica v2.5.0
 
