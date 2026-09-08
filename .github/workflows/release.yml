@@ -266,10 +266,10 @@ jobs:
           fi
           echo "✅ Artefatos encontrados"
 
-      - name: "Instalar dput"
+      - name: "Instalar dput e devscripts"
         run: |
           sudo apt update
-          sudo apt install -y dput
+          sudo apt install -y dput devscripts
 
       - name: "Enviar para PPA noble"
         run: |
@@ -330,10 +330,10 @@ jobs:
           fi
           echo "✅ Artefatos encontrados"
 
-      - name: "Instalar dput"
+      - name: "Instalar dput e devscripts"
         run: |
           sudo apt update
-          sudo apt install -y dput
+          sudo apt install -y dput devscripts
 
       - name: "Configurar dput"
         run: |
