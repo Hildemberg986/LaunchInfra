@@ -1,4 +1,9 @@
-launchinfra (2.7.4) UNRELEASED; urgency=medium
+launchinfra (2.8.0) UNRELEASED; urgency=medium
+
+  * Release automatica v2.8.0
+
+ -- Hildemberg Eling <hildembergeling@gmail.com>  Thu, 24 Sep 2026 15:05:20 +0000
+
 
   * Release automatica v2.7.4
 
