@@ -41,39 +41,60 @@ check_port() {
     return 1
 }
 
+# Imprime "Porta N: processo" a partir da saida de ss/netstat -tulnp
+# Processo: coluna users:(("nome",...)) do ss, ou "PID/nome" do netstat
+parse_ports() {
+    printf '%s\n' "$1" | awk '/LISTEN/ {
+            port = ""
+            proc = "desconhecido"
+            # Endereco local: primeiro campo terminando em :NUMERO
+            # (trata IPv4, IPv6 [::]:PORTA e interfaces tipo 127.0.0.53%lo:PORTA)
+            for (i = 1; i <= NF; i++) {
+                n = split($i, a, ":")
+                if (n > 1 && a[n] ~ /^[0-9]+$/) { port = a[n]; break }
+            }
+            if (port == "") next
+            # ss: users:(("nome",pid=...,fd=...))
+            for (i = 1; i <= NF; i++) {
+                if ($i ~ /^users:\(\\(\"/) {
+                    s = $i
+                    sub(/^users:\(\\(\"/, "", s)
+                    if (index(s, "\"") > 0) s = substr(s, 1, index(s, "\"") - 1)
+                    if (s != "") { split(s, w, " "); proc = w[1] }
+                    break
+                }
+            }
+            # netstat: "PID/nome" na ultima coluna
+            if (proc == "desconhecido" && $NF ~ /\//) {
+                split($NF, p, "/")
+                if (p[2] != "" && p[2] != "-") proc = p[2]
+            }
+            print port, proc
+        }' | sort -n | uniq | while read -r port proc; do
+        [ -n "$port" ] || continue
+        echo "  Porta $port: ${proc:-desconhecido}"
+    done
+}
+
 list_ports() {
     echo -e "\n=== Portas em uso no sistema ==="
     local scanner
     scanner=$(detect_port_scanner)
+    local ports_data=""
     case "$scanner" in
         ss)
-            ss -tuln 2>/dev/null | grep -E 'LISTEN' | awk '{print $5}' | rev | cut -d: -f1 | rev | sort -n | uniq | while read -r port; do
-                [ -z "$port" ] && continue
-                if command -v lsof >/dev/null 2>&1; then
-                    process=$(lsof -i :"$port" 2>/dev/null | grep LISTEN | head -1 | awk '{print $1}')
-                else
-                    process="desconhecido"
-                fi
-                echo "  Porta $port: ${process:-desconhecido}"
-            done
+            # Helper privilegiado enxerga o processo de TODAS as portas
+            if [ -x "$LAUNCHINFRA_HELPER" ]; then
+                ports_data=$(run_helper ss-ports 2>/dev/null) || true
+            fi
+            # Fallback: ss local (nao ve processo de sockets alheios)
+            if ! printf '%s' "$ports_data" | grep -q LISTEN; then
+                ports_data=$(ss -tulnp 2>/dev/null)
+            fi
+            parse_ports "$ports_data"
             ;;
         netstat)
-            netstat -tuln 2>/dev/null | grep -E 'LISTEN' | awk '{print $4}' | rev | cut -d: -f1 | rev | sort -n | uniq | while read -r port; do
-                [ -z "$port" ] && continue
-                if command -v lsof >/dev/null 2>&1; then
-                    process=$(lsof -i :"$port" 2>/dev/null | grep LISTEN | head -1 | awk '{print $1}')
-                else
-                    process="desconhecido"
-                fi
-                echo "  Porta $port: ${process:-desconhecido}"
-            done
-            ;;
-        lsof)
-            lsof -i -P -n 2>/dev/null | grep LISTEN | awk '{print $9}' | cut -d: -f2 | sort -n | uniq | while read -r port; do
-                [ -z "$port" ] && continue
-                process=$(lsof -i :"$port" 2>/dev/null | grep LISTEN | head -1 | awk '{print $1}')
-                echo "  Porta $port: ${process:-desconhecido}"
-            done
+            parse_ports "$(netstat -tulnp 2>/dev/null)"
             ;;
         *)
             echo "  Nenhuma ferramenta disponivel para escanear portas."
