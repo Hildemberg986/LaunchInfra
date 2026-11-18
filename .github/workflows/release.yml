@@ -304,6 +304,10 @@ jobs:
           path: repo
           token: ${{ secrets.RELEASE_TOKEN }}
 
+      - name: "Instalar dependências para gh-pages"
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends apt-utils
+
       - name: "Build gh-pages"
         run: |
           NEW="${{ needs.bump.outputs.new }}"
