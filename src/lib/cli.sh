@@ -61,6 +61,11 @@ show_help() {
     echo "  --restore, --enable NOME    Reativa um projeto parado"
     echo "  --remove, rm NOME [--backup] [-y]  Apaga um projeto (backup/confirmacao opcional)"
     echo ""
+    echo -e "${GREEN}-- Modificadores Nginx --${NC}"
+    echo "  mod NOME list               Lista modificadores ativos no projeto"
+    echo "  mod NOME add RECURSO        Ativa um modificador (cors, security, etc.)"
+    echo "  mod NOME rm RECURSO         Desativa um modificador do projeto"
+    echo ""
     echo -e "${GREEN}-- SSL --${NC}"
     echo "  --renew NOME                Renova o certificado de um projeto"
     echo "  --check-ssl                 Checa a validade de todos os certificados"
@@ -75,6 +80,7 @@ show_help() {
     echo "  --help, -h                  Mostra este menu"
     echo ""
     echo -e "${YELLOW}OPCOES DE CRIACAO (usar junto com NOME)${NC}"
+    echo "  --preset NOME               Preset (spa, api, secure, static-cached)"
     echo "  --no-ssl                    Sem SSL (so HTTP)"
     echo "  --domain DOMINIO            Usa um dominio no lugar do padrao"
     echo "  --template DIR              Copia um template HTML p/ o projeto"
@@ -91,6 +97,8 @@ show_help() {
     echo "  launchinfra novo --dry-run                  Testa a criacao sem aplicar"
     echo "  launchinfra config --email dev@exemplo.com --domain exemplo.com"
     echo "  launchinfra ls"
+    echo "  launchinfra mod blog add cors               Habilita headers CORS"
+    echo "  launchinfra mod blog list                   Lista recursos do projeto"
     echo "  launchinfra rm blog"
     echo ""
     echo -e "${YELLOW}LICENCA${NC}"
@@ -162,6 +170,37 @@ dispatch_cli() {
         ;;
     setup-nginx)
         setup_nginx_default
+        return $?
+        ;;
+    mod)
+        local project="$2" action="$3" modifier="$4"
+        if [ -z "$project" ] || [ -z "$action" ]; then
+            echo "Uso: launchinfra mod PROJETO <list|add|rm> [RECURSO]"
+            return 1
+        fi
+        case "$action" in
+        list | ls)
+            list_modifiers "$project"
+            ;;
+        add | enable)
+            if [ -z "$modifier" ]; then
+                echo "Informe o recurso a adicionar"
+                return 1
+            fi
+            add_modifier "$project" "$modifier"
+            ;;
+        rm | remove | del | disable)
+            if [ -z "$modifier" ]; then
+                echo "Informe o recurso a remover"
+                return 1
+            fi
+            remove_modifier "$project" "$modifier"
+            ;;
+        *)
+            echo "Acao invalida: $action (use list, add ou rm)"
+            return 1
+            ;;
+        esac
         return $?
         ;;
     --list | ls)

@@ -36,8 +36,11 @@ install:
 	install -D src/lib/config.sh $(DESTDIR)/usr/share/launchinfra/lib/config.sh
 	install -D src/lib/utils.sh $(DESTDIR)/usr/share/launchinfra/lib/utils.sh
 	install -D src/lib/nginx_project.sh $(DESTDIR)/usr/share/launchinfra/lib/nginx_project.sh
+	install -D src/lib/modifiers.sh $(DESTDIR)/usr/share/launchinfra/lib/modifiers.sh
 	install -D src/lib/cli.sh $(DESTDIR)/usr/share/launchinfra/lib/cli.sh
 	install -D src/bash-completion/launchinfra $(DESTDIR)/usr/share/bash-completion/completions/launchinfra
+	install -d $(DESTDIR)/usr/share/launchinfra/snippets
+	install -m 644 src/snippets/*.conf $(DESTDIR)/usr/share/launchinfra/snippets/
 
 .PHONY: clean
 clean:
