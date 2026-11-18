@@ -8,7 +8,7 @@ _launchinfra_completion() {
     prev="${COMP_WORDS[COMP_CWORD - 1]}"
     cword=$COMP_CWORD
 
-    local commands="--version --help setup-nginx config --list --list-ports --info --edit --remove --disable --restore --renew --check-ssl --check-port --check-domain"
+    local commands="--version --help setup-nginx config --list ls --list-ports ports --info --edit --backup backup --remove rm --disable --restore --enable --renew --check-ssl --check-port --check-domain mod --preset --no-ssl --domain --template --dry-run"
 
     # Função para pegar projetos usando mapfile
     get_projects() {
@@ -18,31 +18,55 @@ _launchinfra_completion() {
         printf '%s ' "${projects[@]}"
     }
 
+    # Tratamento específico para o comando mod (launchinfra mod <projeto> <list|add|rm> [recurso])
+    if [ "${COMP_WORDS[1]}" = "mod" ]; then
+        case "$cword" in
+        2)
+            mapfile -t COMPREPLY < <(compgen -W "$(get_projects)" -- "$cur")
+            return 0
+            ;;
+        3)
+            mapfile -t COMPREPLY < <(compgen -W "list add rm" -- "$cur")
+            return 0
+            ;;
+        4)
+            if [ "${COMP_WORDS[3]}" = "add" ] || [ "${COMP_WORDS[3]}" = "rm" ]; then
+                local modifiers="cors security protect-hidden gzip static-cache spa"
+                mapfile -t COMPREPLY < <(compgen -W "$modifiers" -- "$cur")
+                return 0
+            fi
+            ;;
+        esac
+    fi
+
     case "$prev" in
-    --info | --edit | --remove | --disable | --restore | --renew)
-        COMPREPLY=($(compgen -W "$(get_projects)" -- "$cur"))
+    --info | --edit | --remove | rm | --disable | --restore | --enable | --renew | --backup | backup)
+        mapfile -t COMPREPLY < <(compgen -W "$(get_projects)" -- "$cur")
+        ;;
+    --preset)
+        mapfile -t COMPREPLY < <(compgen -W "spa api secure static-cached" -- "$cur")
         ;;
     --domain)
-        COMPREPLY=($(compgen -W "exemplo.com" -- "$cur"))
+        mapfile -t COMPREPLY < <(compgen -W "exemplo.com" -- "$cur")
         ;;
     --template)
-        COMPREPLY=($(compgen -d -- "$cur"))
+        mapfile -t COMPREPLY < <(compgen -d -- "$cur")
         ;;
     --email)
-        COMPREPLY=($(compgen -W "admin@exemplo.com" -- "$cur"))
+        mapfile -t COMPREPLY < <(compgen -W "admin@exemplo.com" -- "$cur")
         ;;
     --check-port)
-        COMPREPLY=($(compgen -W "80 443 3000 5000 8000 8080 8443" -- "$cur"))
+        mapfile -t COMPREPLY < <(compgen -W "80 443 3000 5000 8000 8080 8443" -- "$cur")
         ;;
     config)
-        COMPREPLY=($(compgen -W "--email --domain --show --help" -- "$cur"))
+        mapfile -t COMPREPLY < <(compgen -W "--email --domain --show --help" -- "$cur")
         ;;
     *)
         if [[ "$cur" == -* ]]; then
-            COMPREPLY=($(compgen -W "$commands" -- "$cur"))
+            mapfile -t COMPREPLY < <(compgen -W "$commands" -- "$cur")
         else
-            if [ $cword -eq 1 ]; then
-                COMPREPLY=($(compgen -W "$commands $(get_projects)" -- "$cur"))
+            if [ "$cword" -eq 1 ]; then
+                mapfile -t COMPREPLY < <(compgen -W "$commands $(get_projects)" -- "$cur")
             fi
         fi
         ;;
