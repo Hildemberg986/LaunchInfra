@@ -3,7 +3,7 @@ set -eo pipefail
 # nginx / project operations: create, remove, disable, restore, dry-run, edit
 
 create_project() {
-    local PROJETO="" PORTA="" NO_SSL="" FORCE="" DRY_RUN="" CUSTOM_DOMAIN="" TEMPLATE="" FORCE_SSL=""
+    local PROJETO="" PORTA="" NO_SSL="" FORCE="" DRY_RUN="" CUSTOM_DOMAIN="" TEMPLATE="" FORCE_SSL="" MAX_BODY=""
 
     local prev_arg=""
     for arg in "$@"; do
@@ -14,6 +14,7 @@ create_project() {
         --dry-run) DRY_RUN="--dry-run" ;;
         --domain | --dominio) ;;
         --template) ;;
+        --max-body) ;;
         *)
             if [ -z "$PROJETO" ]; then
                 PROJETO="$arg"
@@ -21,6 +22,8 @@ create_project() {
                 CUSTOM_DOMAIN="$arg"
             elif [ "$prev_arg" = "--template" ]; then
                 TEMPLATE="$arg"
+            elif [ "$prev_arg" = "--max-body" ]; then
+                MAX_BODY="$arg"
             elif [ -z "$PORTA" ]; then
                 if [[ "$arg" =~ ^[0-9]+$ ]]; then
                     PORTA="$arg"
@@ -30,6 +33,8 @@ create_project() {
         esac
         prev_arg="$arg"
     done
+
+    MAX_BODY="${MAX_BODY:-50M}"
 
     if [ -z "$PROJETO" ]; then
         log_error "Nome do projeto e obrigatorio"
@@ -123,12 +128,19 @@ create_project() {
 server {
     listen 80;
     server_name $DOMINIO;
+
+    client_max_body_size $MAX_BODY;
+
     location / {
         proxy_pass http://127.0.0.1:$PORTA;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_cache_bypass \$http_upgrade;
     }
 }
 NGINX
@@ -138,6 +150,7 @@ NGINX
 server {
     listen 80;
     server_name $DOMINIO;
+    client_max_body_size $MAX_BODY;
     root $DIR;
     index index.html;
     location / {

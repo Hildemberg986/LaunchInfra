@@ -78,6 +78,7 @@ show_help() {
     echo "  --no-ssl                    Sem SSL (so HTTP)"
     echo "  --domain DOMINIO            Usa um dominio no lugar do padrao"
     echo "  --template DIR              Copia um template HTML p/ o projeto"
+    echo "  --max-body TAMANHO          Tamanho maximo do payload (padrao: 50M)"
     echo "  --dry-run                   Simula a criacao, nao aplica nada"
     echo "  --force                     Cria mesmo havendo conflitos"
     echo ""
