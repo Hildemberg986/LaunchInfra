@@ -91,7 +91,19 @@ case "$1" in
     cp-template) shift; /bin/cp -r "$1"/* "$2"/ ;;
     cat-nginx) shift; /bin/cat "$1" ;;
     cp-backup) shift; /bin/cp "$1" "$2" ;;
-    openssl-check) shift; echo | /usr/bin/openssl s_client -servername "$1" -connect "$1:443" 2>/dev/null | /usr/bin/openssl x509 -noout -enddate 2>/dev/null ;;
+    openssl-check)
+        shift
+        target="$1"
+        if [ -f "$target" ]; then
+            /usr/bin/openssl x509 -noout -enddate -in "$target" 2>/dev/null
+        elif [ -f "/etc/letsencrypt/live/$target/cert.pem" ]; then
+            /usr/bin/openssl x509 -noout -enddate -in "/etc/letsencrypt/live/$target/cert.pem" 2>/dev/null
+        elif [ -f "/etc/letsencrypt/live/$target/fullchain.pem" ]; then
+            /usr/bin/openssl x509 -noout -enddate -in "/etc/letsencrypt/live/$target/fullchain.pem" 2>/dev/null
+        else
+            echo | /usr/bin/timeout 3 /usr/bin/openssl s_client -servername "$target" -connect "$target:443" 2>/dev/null | /usr/bin/openssl x509 -noout -enddate 2>/dev/null || true
+        fi
+        ;;
     tar-backup) shift; /bin/tar czf "$1" -C "$2" "$3"; /bin/chown "$4:$4" "$1" ;;
     ss-ports) ss -tulnp 2>/dev/null ;;
     *) echo "Comando invalido: $1"; exit 1 ;;
