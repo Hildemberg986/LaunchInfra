@@ -3,18 +3,18 @@ set -eo pipefail
 # nginx / project operations: create, remove, disable, restore, dry-run, edit
 
 create_project() {
-    local PROJETO="" PORTA="" NO_SSL="" FORCE="" DRY_RUN="" CUSTOM_DOMAIN="" TEMPLATE="" FORCE_SSL="" MAX_BODY=""
+    local PROJETO="" PORTA="" NO_SSL="" FORCE="" DRY_RUN="" CUSTOM_DOMAIN="" TEMPLATE="" FORCE_SSL="" MAX_BODY="" PRESET=""
 
     local prev_arg=""
     for arg in "$@"; do
         case "$arg" in
         --no-ssl) NO_SSL="--no-ssl" ;;
         --force) FORCE="--force" ;;
-        --force-ssl) FORCE_SSL="--force-ssl" ;;
         --dry-run) DRY_RUN="--dry-run" ;;
         --domain | --dominio) ;;
         --template) ;;
         --max-body) ;;
+        --preset) ;;
         *)
             if [ -z "$PROJETO" ]; then
                 PROJETO="$arg"
@@ -24,6 +24,8 @@ create_project() {
                 TEMPLATE="$arg"
             elif [ "$prev_arg" = "--max-body" ]; then
                 MAX_BODY="$arg"
+            elif [ "$prev_arg" = "--preset" ]; then
+                PRESET="$arg"
             elif [ -z "$PORTA" ]; then
                 if [[ "$arg" =~ ^[0-9]+$ ]]; then
                     PORTA="$arg"
@@ -83,6 +85,7 @@ create_project() {
         echo "  SSL:          $([ "$NO_SSL" = "--no-ssl" ] && echo 'Nao' || echo 'Sim')"
         echo "  Diretorio:    $DIR"
         echo "  Template:     ${TEMPLATE:-padrao}"
+        echo "  Preset:       ${PRESET:-nenhum}"
         echo "  Forcar:       $([ "$FORCE" = "--force" ] && echo 'Sim' || echo 'Nao')"
         echo -e "${BLUE}================${NC}\n"
         log_info "DRY RUN: $REAL_USER/$PROJETO ($DOMINIO)"
@@ -131,6 +134,9 @@ server {
 
     client_max_body_size $MAX_BODY;
 
+    # --- [launchinfra:snippets:start] ---
+    # --- [launchinfra:snippets:end] ---
+
     location / {
         proxy_pass http://127.0.0.1:$PORTA;
         proxy_http_version 1.1;
@@ -151,6 +157,9 @@ server {
     listen 80;
     server_name $DOMINIO;
     client_max_body_size $MAX_BODY;
+
+    # --- [launchinfra:snippets:start] ---
+    # --- [launchinfra:snippets:end] ---
     root $DIR;
     index index.html;
     location / {
@@ -167,6 +176,11 @@ NGINX
     fi
     run_helper nginx-reload
     log_success "Nginx configurado com HTTP"
+
+    # Aplica preset se solicitado
+    if [ -n "$PRESET" ]; then
+        apply_preset "$PROJETO" "$PRESET"
+    fi
 
     if [ "$NO_SSL" != "--no-ssl" ]; then
         # Valida que o backend responde antes de solicitar SSL
