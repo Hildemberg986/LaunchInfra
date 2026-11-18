@@ -3,13 +3,14 @@ set -eo pipefail
 # nginx / project operations: create, remove, disable, restore, dry-run, edit
 
 create_project() {
-    local PROJETO="" PORTA="" NO_SSL="" FORCE="" DRY_RUN="" CUSTOM_DOMAIN="" TEMPLATE=""
+    local PROJETO="" PORTA="" NO_SSL="" FORCE="" DRY_RUN="" CUSTOM_DOMAIN="" TEMPLATE="" FORCE_SSL=""
 
     local prev_arg=""
     for arg in "$@"; do
         case "$arg" in
         --no-ssl) NO_SSL="--no-ssl" ;;
         --force) FORCE="--force" ;;
+        --force-ssl) FORCE_SSL="--force-ssl" ;;
         --dry-run) DRY_RUN="--dry-run" ;;
         --domain | --dominio) ;;
         --template) ;;
@@ -156,16 +157,30 @@ NGINX
 
     if [ "$NO_SSL" != "--no-ssl" ]; then
         # Valida que o backend responde antes de solicitar SSL
-        # (necessario para o desafio HTTP-01 do Certbot)
+        # (necessario para o desafio HTTP-01 do Certbot e evitar rate limit da Let's Encrypt)
+        local skip_ssl=0
         if [ -n "$PORTA" ]; then
             log_info "Validando backend na porta $PORTA..."
-            # Testa se o proxy_pass responde via Nginx recem-configurado
-            # O nginx ja foi recarregado acima, entao 127.0.0.1:80 -> projeto
             backend_test=$(curl -s -o /dev/null -w "%{http_code}" -H "Host: $DOMINIO" "http://127.0.0.1/" 2>/dev/null || echo "000")
-            if [ "$backend_test" = "000" ]; then
-                log_warning "Backend na porta $PORTA nao responde. SSL sera solicitado, mas verifique se o servico esta ativo."
-            elif [ "$backend_test" = "502" ] || [ "$backend_test" = "503" ]; then
-                log_warning "Backend na porta $PORTA retornou $backend_test. SSL sera solicitado, mas o servico pode nao estar pronto."
+            if [ "$backend_test" = "000" ] || [ "$backend_test" = "502" ] || [ "$backend_test" = "503" ]; then
+                log_warning "Backend na porta $PORTA nao respondeu adequadamente (HTTP $backend_test)."
+                if [ "$FORCE" = "--force" ] || [ "$FORCE_SSL" = "--force-ssl" ]; then
+                    log_info "Flag --force ativa. Continuando solicitacao de SSL mesmo com backend instavel."
+                elif [ -t 0 ]; then
+                    read -r -p "Deseja solicitar o certificado SSL mesmo assim? (s/N): " resp_ssl
+                    if [[ ! "$resp_ssl" =~ ^[Ss]$ ]]; then
+                        skip_ssl=1
+                    fi
+                else
+                    log_warning "Modo nao-interativo: SSL abortado para evitar bloqueio por rate limit da Let's Encrypt."
+                    skip_ssl=1
+                fi
+
+                if [ "$skip_ssl" -eq 1 ]; then
+                    log_warning "SSL nao configurado. O projeto foi mantido em HTTP."
+                    log_info "Assim que o servico na porta $PORTA estiver ativo, emita o SSL com: launchinfra --renew $PROJETO"
+                    NO_SSL="--no-ssl"
+                fi
             else
                 log_info "Backend respondendo HTTP $backend_test"
             fi
