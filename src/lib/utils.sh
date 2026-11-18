@@ -187,8 +187,13 @@ show_project_info() {
         created=$(find "$config_file" -maxdepth 0 -printf '%t' 2>/dev/null)
     fi
     ssl_expiry="N/A"
-    if [ "$ssl" = "Sim" ] && [ -n "$domain" ]; then
-        ssl_expiry=$(echo | run_helper openssl-check "$domain" 2>/dev/null | cut -d= -f2)
+    if [ "$ssl" = "Sim" ]; then
+        local cert_path
+        cert_path=$(grep -m1 "ssl_certificate[[:space:]]" "$config_file" 2>/dev/null | awk '{print $2}' | tr -d ';')
+        local target="${cert_path:-$domain}"
+        if [ -n "$target" ]; then
+            ssl_expiry=$(echo | run_helper openssl-check "$target" 2>/dev/null | cut -d= -f2)
+        fi
         [ -z "$ssl_expiry" ] && ssl_expiry="Nao foi possivel verificar"
     fi
 
@@ -220,9 +225,12 @@ check_all_ssl() {
             local project domain
             project=$(basename "$config")
             domain=$(grep -m1 "server_name" "$config" | awk '{print $2}' | tr -d ';')
-            if [ -n "$domain" ]; then
+            local cert_path
+            cert_path=$(grep -m1 "ssl_certificate[[:space:]]" "$config" 2>/dev/null | awk '{print $2}' | tr -d ';')
+            local target="${cert_path:-$domain}"
+            if [ -n "$target" ]; then
                 local expiry
-                expiry=$(echo | run_helper openssl-check "$domain" 2>/dev/null | cut -d= -f2)
+                expiry=$(echo | run_helper openssl-check "$target" 2>/dev/null | cut -d= -f2)
                 if [ -n "$expiry" ]; then
                     local expiry_epoch now_epoch days_left
                     expiry_epoch=$(date -d "$expiry" +%s 2>/dev/null)
