@@ -260,7 +260,19 @@ NGINX
 }
 
 remove_project() {
-    local project=$1
+    local project="" do_backup=0 assume_yes=0
+    for arg in "$@"; do
+        case "$arg" in
+        --backup) do_backup=1 ;;
+        -y | --yes) assume_yes=1 ;;
+        *)
+            if [ -z "$project" ]; then
+                project="$arg"
+            fi
+            ;;
+        esac
+    done
+
     [ -z "$project" ] && {
         log_error "Nome do projeto e obrigatorio"
         return 1
@@ -278,7 +290,7 @@ remove_project() {
         return 1
     fi
 
-    [ "$2" = "--backup" ] && backup_project "$project"
+    [ "$do_backup" -eq 1 ] && backup_project "$project"
 
     # Le o dominio real do arquivo nginx (funciona tanto com projetos padrao quanto com --domain custom)
     local domain
@@ -288,10 +300,20 @@ remove_project() {
     log_info "Removendo projeto: $project"
     run_helper rm-nginx "$NGINX_ENABLED/$NGINX_NAME" "$NGINX_AVAILABLE/$NGINX_NAME"
 
-    read -r -p "Remover certificado SSL? (s/N): " remove_ssl
+    local remove_ssl="n"
+    if [ "$assume_yes" -eq 1 ]; then
+        remove_ssl="s"
+    elif [ -t 0 ]; then
+        read -r -p "Remover certificado SSL? (s/N): " remove_ssl
+    fi
     [[ $remove_ssl =~ ^[Ss]$ ]] && run_helper certbot delete --cert-name "$domain" --quiet 2>/dev/null
 
-    read -r -p "Remover arquivos em $USER_DIR/$project? (s/N): " remove_files
+    local remove_files="n"
+    if [ "$assume_yes" -eq 1 ]; then
+        remove_files="s"
+    elif [ -t 0 ]; then
+        read -r -p "Remover arquivos em $USER_DIR/$project? (s/N): " remove_files
+    fi
     [[ $remove_files =~ ^[Ss]$ ]] && run_helper rm-files "$USER_DIR/$project"
 
     run_helper nginx-test && run_helper nginx-reload

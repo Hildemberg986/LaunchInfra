@@ -59,7 +59,7 @@ show_help() {
     echo "  --backup NOME               Cria backup do projeto (arquivos web + Nginx)"
     echo "  --disable NOME              Para um projeto (guardando a config)"
     echo "  --restore, --enable NOME    Reativa um projeto parado"
-    echo "  --remove, rm NOME [--backup]  Apaga um projeto (backup opcional)"
+    echo "  --remove, rm NOME [--backup] [-y]  Apaga um projeto (backup/confirmacao opcional)"
     echo ""
     echo -e "${GREEN}-- SSL --${NC}"
     echo "  --renew NOME                Renova o certificado de um projeto"
@@ -196,11 +196,12 @@ dispatch_cli() {
         return $?
         ;;
     --remove | rm)
-        if [ -z "$2" ]; then
-            echo "Uso: launchinfra --remove NOME [--backup]"
+        shift
+        if [ -z "$1" ]; then
+            echo "Uso: launchinfra --remove NOME [--backup] [-y|--yes]"
             return 1
         fi
-        remove_project "$2" "$3"
+        remove_project "$@"
         return $?
         ;;
     --disable)
