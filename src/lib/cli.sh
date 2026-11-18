@@ -37,73 +37,148 @@ validate_email() {
 }
 
 show_help() {
-    echo -e "${BLUE}LaunchInfra - Gerenciador de Projetos Web${NC}"
-    echo -e "${BLUE}Nginx + SSL automatico (Let's Encrypt), sem complicacao.${NC}"
+    local version
+    version=$(get_version) || version="desconhecida"
+
+    echo -e "${BOLD}${BLUE}LaunchInfra v$version — Gerenciador de Infraestrutura Web & Nginx${NC}"
+    echo "Hospede sites estaticos, SPAs e APIs com SSL automatico em segundos."
     echo ""
-    echo -e "${YELLOW}ATALHO RAPIDO${NC}"
-    echo "  launchinfra NOME            Cria um site estatico"
-    echo "  launchinfra NOME 3000       Cria um reverse proxy p/ porta 3000 (API)"
-    echo "  launchinfra --help          Mostra este menu (todas as opcoes abaixo)"
+    echo -e "${BOLD}${YELLOW}USO${NC}"
+    echo "  launchinfra <comando> [opcoes...]"
+    echo "  launchinfra <projeto> [porta] [opcoes de criacao]"
     echo ""
-    echo -e "${YELLOW}COMANDOS${NC}"
+    echo -e "${BOLD}${YELLOW}COMANDOS${NC}"
     echo ""
-    echo -e "${GREEN}-- Criacao --${NC}"
-    echo "  NOME [PORTA] [OPCOES]       Cria um site ou API (ve as OPCOES abaixo)"
-    echo "  config                      Define seu email e dominio padrao"
-    echo "  setup-nginx                 Prepara o Nginx p/ SSL automatico"
+    echo -e "${BOLD}${GREEN}  Gerenciamento de Projetos${NC}"
+    echo "    <projeto> [porta]            Cria um novo projeto (estatico ou proxy reverso)"
+    echo "    ls, --list                   Lista todos os projetos do usuario atual"
+    echo "    --info <projeto>             Exibe detalhes tecnicos e status do projeto"
+    echo "    --edit <projeto>             Abre o arquivo de configuracao do Nginx no editor"
+    echo "    --backup <projeto>           Gera backup (.tar.gz) dos arquivos web e do Nginx"
+    echo "    --disable <projeto>          Desativa temporariamente o site mantendo a config"
+    echo "    --restore, --enable <proj>   Reativa um projeto previamente desativado"
+    echo "    rm, --remove <proj> [-y]     Remove o projeto (--backup e -y opcionais)"
     echo ""
-    echo -e "${GREEN}-- Projetos --${NC}"
-    echo "  --list, ls                  Lista seus projetos (root ve todos)"
-    echo "  --info NOME                 Detalhes de um projeto"
-    echo "  --edit NOME                 Edita o config Nginx do projeto"
-    echo "  --backup NOME               Cria backup do projeto (arquivos web + Nginx)"
-    echo "  --disable NOME              Para um projeto (guardando a config)"
-    echo "  --restore, --enable NOME    Reativa um projeto parado"
-    echo "  --remove, rm NOME [--backup] [-y]  Apaga um projeto (backup/confirmacao opcional)"
+    echo -e "${BOLD}${GREEN}  Modificadores Nginx (launchinfra mod)${NC}"
+    echo "    mod <proj> list              Lista modificadores ativos no projeto"
+    echo "    mod <proj> add <recurso>     Ativa um modificador (cors, security, gzip, etc.)"
+    echo "    mod <proj> rm <recurso>      Desativa um modificador do projeto"
     echo ""
-    echo -e "${GREEN}-- Modificadores Nginx --${NC}"
-    echo "  mod NOME list               Lista modificadores ativos no projeto"
-    echo "  mod NOME add RECURSO        Ativa um modificador (cors, security, etc.)"
-    echo "  mod NOME rm RECURSO         Desativa um modificador do projeto"
+    echo -e "${BOLD}${GREEN}  Certificados & Seguranca SSL${NC}"
+    echo "    --renew <projeto>            Renova ou emite certificado SSL via Certbot"
+    echo "    --check-ssl                  Verifica validade e dias para expiracao do SSL"
     echo ""
-    echo -e "${GREEN}-- SSL --${NC}"
-    echo "  --renew NOME                Renova o certificado de um projeto"
-    echo "  --check-ssl                 Checa a validade de todos os certificados"
+    echo -e "${BOLD}${GREEN}  Rede & Diagnostico${NC}"
+    echo "    ports, --list-ports          Lista as portas TCP em escuta no sistema"
+    echo "    --check-port <porta>         Verifica se uma porta local ja esta ocupada"
+    echo "    --check-domain <dominio>     Verifica se um dominio ja esta configurado"
     echo ""
-    echo -e "${GREEN}-- Verificacao --${NC}"
-    echo "  --list-ports, ports         Mostra as portas em uso no sistema"
-    echo "  --check-port PORTA          Verifica se uma porta esta ocupada"
-    echo "  --check-domain NOME         Verifica se um dominio ja esta em uso"
+    echo -e "${BOLD}${GREEN}  Configuracao & Sistema${NC}"
+    echo "    config                       Configura email e dominio padrao para SSL"
+    echo "    setup-nginx                  Prepara o Nginx e pastas do sistema"
+    echo "    help, --help, -h             Exibe este menu (ou 'help mod', 'help config')"
+    echo "    --version, -v                Exibe a versao instalada e informacoes"
     echo ""
-    echo -e "${GREEN}-- Informacoes --${NC}"
-    echo "  --version, -v               Mostra a versao"
-    echo "  --help, -h                  Mostra este menu"
+    echo -e "${BOLD}${YELLOW}OPCOES DE CRIACAO (usar com <projeto>)${NC}"
+    echo "    --preset <nome>              Aplica preset: spa, api, secure, static-cached"
+    echo "    --domain, --dominio <dom>    Define dominio proprio (ex: app.meusite.com)"
+    echo "    --template <dir>             Copia template HTML para a pasta do projeto"
+    echo "    --max-body <tamanho>         Tamanho maximo de upload/payload (padrao: 50M)"
+    echo "    --no-ssl                     Cria o projeto apenas em HTTP (porta 80)"
+    echo "    --dry-run                    Simula a criacao sem modificar nada no sistema"
+    echo "    --force                      Cria o projeto mesmo se houver conflitos"
     echo ""
-    echo -e "${YELLOW}OPCOES DE CRIACAO (usar junto com NOME)${NC}"
-    echo "  --preset NOME               Preset (spa, api, secure, static-cached)"
-    echo "  --no-ssl                    Sem SSL (so HTTP)"
-    echo "  --domain DOMINIO            Usa um dominio no lugar do padrao"
-    echo "  --template DIR              Copia um template HTML p/ o projeto"
-    echo "  --max-body TAMANHO          Tamanho maximo do payload (padrao: 50M)"
-    echo "  --dry-run                   Simula a criacao, nao aplica nada"
-    echo "  --force                     Cria mesmo havendo conflitos"
+    echo -e "${BOLD}${YELLOW}PRESETS DISPONIVEIS (--preset)${NC}"
+    echo "    spa            Single Page Apps (React/Vue): fallback de rotas, gzip e cache"
+    echo "    api            APIs REST/GraphQL: proxy reverso com CORS, gzip e WebSocket"
+    echo "    secure         Hardening: headers estritos de seguranca e bloqueio de ocultos"
+    echo "    static-cached  Site estatico de alta performance: gzip e cache agressivo"
     echo ""
-    echo -e "${YELLOW}EXEMPLOS${NC}"
-    echo "  launchinfra blog                            Site estatico"
-    echo "  launchinfra api 3000                        Reverse proxy p/ porta 3000"
-    echo "  launchinfra app --domain meusite.com.br 8080  Dominio proprio"
-    echo "  launchinfra teste --no-ssl                  Site sem SSL"
-    echo "  launchinfra blog --template ~/meu-template/  Site com template"
-    echo "  launchinfra novo --dry-run                  Testa a criacao sem aplicar"
-    echo "  launchinfra config --email dev@exemplo.com --domain exemplo.com"
-    echo "  launchinfra ls"
-    echo "  launchinfra mod blog add cors               Habilita headers CORS"
-    echo "  launchinfra mod blog list                   Lista recursos do projeto"
-    echo "  launchinfra rm blog"
+    echo -e "${BOLD}${YELLOW}MODIFICADORES DISPONIVEIS (launchinfra mod <proj> add|rm)${NC}"
+    echo "    cors           Headers de Cross-Origin Resource Sharing e preflight OPTIONS"
+    echo "    security       Headers HTTP de protecao (HSTS, CSP, X-Frame-Options, etc.)"
+    echo "    protect-hidden Bloqueio de acesso a arquivos sensiveis (.git, .env, .htaccess)"
+    echo "    gzip           Compressao de conteudo para acelerar carregamento"
+    echo "    static-cache   Cache estatico com max-age longo para assets (.js, .css, imagens)"
+    echo "    spa            Fallback de rotas client-side para SPA (index.html)"
     echo ""
-    echo -e "${YELLOW}LICENCA${NC}"
-    echo "  Uso permitido. Redistribuicao PROIBIDA sem autorizacao do autor."
-    echo "  Veja \"launchinfra --version\" para mais informacoes."
+    echo -e "${BOLD}${YELLOW}EXEMPLOS PRATICOS${NC}"
+    echo "  # 1. Site estatico simples:"
+    echo "    launchinfra blog"
+    echo ""
+    echo "  # 2. Single Page Application (React/Vue/Vite) com preset:"
+    echo "    launchinfra painel --preset spa"
+    echo ""
+    echo "  # 3. API Node.js/Python na porta 3000 com CORS e dominio proprio:"
+    echo "    launchinfra api 3000 --preset api --domain api.exemplo.com"
+    echo ""
+    echo "  # 4. Habilitar seguranca e compressao em projeto existente:"
+    echo "    launchinfra mod blog add security"
+    echo "    launchinfra mod blog add gzip"
+    echo ""
+    echo "  # 5. Backup e remocao automatica sem confirmacao:"
+    echo "    launchinfra rm blog --backup -y"
+    echo ""
+    echo -e "${BOLD}${YELLOW}AJUDA ESPECIFICA${NC}"
+    echo "  Para obter mais detalhes sobre comandos especificos, execute:"
+    echo "    launchinfra mod --help"
+    echo "    launchinfra config --help"
+}
+
+show_mod_help() {
+    local version
+    version=$(get_version) || version="desconhecida"
+
+    echo -e "${BOLD}${BLUE}LaunchInfra v$version — Modificadores Nginx (launchinfra mod)${NC}"
+    echo "Gerenciamento modular de recursos e diretivas avancadas do Nginx."
+    echo ""
+    echo -e "${BOLD}${YELLOW}USO${NC}"
+    echo "  launchinfra mod <projeto> <acao> [recurso]"
+    echo ""
+    echo -e "${BOLD}${YELLOW}ACOES${NC}"
+    echo "  list, ls                     Lista os modificadores atualmente ativos no projeto"
+    echo "  add, enable <recurso>        Injeta e ativa um modificador no virtualhost"
+    echo "  rm, remove, del <recurso>    Remove e desativa um modificador do virtualhost"
+    echo ""
+    echo -e "${BOLD}${YELLOW}RECURSOS DISPONIVEIS${NC}"
+    echo "  cors             Habilita cabecalhos CORS e responde preflight (OPTIONS 204)"
+    echo "  security         Headers HTTP de seguranca (HSTS, CSP, X-Frame-Options, etc.)"
+    echo "  protect-hidden   Bloqueia acesso a arquivos sensiveis (.git, .env, .htaccess)"
+    echo "  gzip             Habilita compressao gzip para JS, CSS, JSON, XML e fontes"
+    echo "  static-cache     Cache agressivo (max-age=31536000, immutable) para assets"
+    echo "  spa              Fallback client-side routing (try_files \$uri \$uri/ /index.html)"
+    echo ""
+    echo -e "${BOLD}${YELLOW}EXEMPLOS${NC}"
+    echo "  launchinfra mod meu-site list"
+    echo "  launchinfra mod minha-api add cors"
+    echo "  launchinfra mod meu-site add gzip"
+    echo "  launchinfra mod meu-site add security"
+    echo "  launchinfra mod meu-site rm cors"
+}
+
+show_config_help() {
+    local version
+    version=$(get_version) || version="desconhecida"
+
+    echo -e "${BOLD}${BLUE}LaunchInfra v$version — Configuracao Global (launchinfra config)${NC}"
+    echo "Gerencia os padroes de dominio e email para emissao de certificados SSL."
+    echo ""
+    echo -e "${BOLD}${YELLOW}USO${NC}"
+    echo "  launchinfra config [opcoes]"
+    echo ""
+    echo -e "${BOLD}${YELLOW}OPCOES${NC}"
+    echo "  --email <email>              Define o email padrao para alertas do Let's Encrypt"
+    echo "  --domain, --dominio <dom>    Define o sufixo de dominio base (ex: meusite.com)"
+    echo "  --show                       Exibe as configuracoes salvas atualmente"
+    echo "  --help, -h                   Exibe este menu de ajuda"
+    echo ""
+    echo -e "${BOLD}${YELLOW}LOCALIZACAO DO ARQUIVO${NC}"
+    echo "  Usuario: ~/.config/launchinfra/config"
+    echo "  Global:  /etc/launchinfra/config"
+    echo ""
+    echo -e "${BOLD}${YELLOW}EXEMPLOS${NC}"
+    echo "  launchinfra config --show"
+    echo "  launchinfra config --email admin@empresa.com --domain empresa.com"
 }
 
 dispatch_cli() {
@@ -117,6 +192,10 @@ dispatch_cli() {
     case "$1" in
     config)
         shift
+        if [ $# -eq 0 ]; then
+            show_config_help
+            return 0
+        fi
         EMAIL_ARG=""
         DOMAIN_ARG=""
         while [ $# -gt 0 ]; do
@@ -137,12 +216,12 @@ dispatch_cli() {
                 show_config
                 return 0
                 ;;
-            --help | -h)
-                echo "Uso: launchinfra config [--email EMAIL] [--domain DOMINIO_BASE] [--show]"
+            --help | -h | help)
+                show_config_help
                 return 0
                 ;;
             *)
-                echo "Opcao invalida: $1"
+                echo "Opcao invalida: $1 (consulte 'launchinfra config --help')"
                 return 1
                 ;;
             esac
@@ -164,18 +243,34 @@ dispatch_cli() {
         show_version
         return 0
         ;;
-    --help | -h)
-        show_help
-        return 0
+    help | --help | -h)
+        case "$2" in
+        mod)
+            show_mod_help
+            return 0
+            ;;
+        config)
+            show_config_help
+            return 0
+            ;;
+        *)
+            show_help
+            return 0
+            ;;
+        esac
         ;;
     setup-nginx)
         setup_nginx_default
         return $?
         ;;
     mod)
+        if [ $# -eq 1 ] || [ "$2" = "--help" ] || [ "$2" = "-h" ] || [ "$2" = "help" ]; then
+            show_mod_help
+            return 0
+        fi
         local project="$2" action="$3" modifier="$4"
         if [ -z "$project" ] || [ -z "$action" ]; then
-            echo "Uso: launchinfra mod PROJETO <list|add|rm> [RECURSO]"
+            echo "Uso: launchinfra mod PROJETO <list|add|rm> [RECURSO] (consulte 'launchinfra mod --help')"
             return 1
         fi
         case "$action" in
@@ -184,20 +279,20 @@ dispatch_cli() {
             ;;
         add | enable)
             if [ -z "$modifier" ]; then
-                echo "Informe o recurso a adicionar"
+                echo "Informe o recurso a adicionar (consulte 'launchinfra mod --help')"
                 return 1
             fi
             add_modifier "$project" "$modifier"
             ;;
         rm | remove | del | disable)
             if [ -z "$modifier" ]; then
-                echo "Informe o recurso a remover"
+                echo "Informe o recurso a remover (consulte 'launchinfra mod --help')"
                 return 1
             fi
             remove_modifier "$project" "$modifier"
             ;;
         *)
-            echo "Acao invalida: $action (use list, add ou rm)"
+            echo "Acao invalida: $action (use list, add ou rm; consulte 'launchinfra mod --help')"
             return 1
             ;;
         esac
