@@ -417,13 +417,53 @@ edit_project() {
         return 1
     }
 
-    run_helper edit-nginx "$config_file"
+    # Edição segura: o editor NUNCA deve ser executado como root via helper
+    local tmp_dir="$USER_CONFIG_DIR/tmp"
+    mkdir -p "$tmp_dir"
+    local tmp_file="$tmp_dir/${NGINX_NAME}-edit-$$.conf"
+    local backup_file="$tmp_dir/${NGINX_NAME}-backup-$$.conf"
+
+    # Copia a configuração atual para o arquivo temporário do usuário
+    if ! run_helper cat-nginx "$config_file" > "$tmp_file" 2>/dev/null; then
+        cat "$config_file" > "$tmp_file" 2>/dev/null || {
+            log_error "Nao foi possivel ler a configuracao atual"
+            rm -f "$tmp_file"
+            return 1
+        }
+    fi
+    cp "$tmp_file" "$backup_file"
+
+    # Executa o editor no contexto do usuário não-privilegiado
+    if [ "$(id -u)" = "0" ] && [ -n "$SUDO_USER" ]; then
+        chown "$SUDO_USER:" "$tmp_file" "$backup_file" 2>/dev/null || true
+        sudo -u "$SUDO_USER" "${EDITOR:-nano}" "$tmp_file"
+    else
+        "${EDITOR:-nano}" "$tmp_file"
+    fi
+
+    # Se não houve alterações
+    if cmp -s "$tmp_file" "$backup_file" 2>/dev/null; then
+        log_info "Nenhuma alteracao realizada na configuracao."
+        rm -f "$tmp_file" "$backup_file"
+        return 0
+    fi
+
+    # Aplica a nova configuração via helper e valida com nginx-test
+    run_helper tee-nginx "$config_file" < "$tmp_file"
 
     if run_helper nginx-test; then
         run_helper nginx-reload
-        log_success "Configuracao editada e Nginx recarregado"
+        rm -f "$tmp_file" "$backup_file"
+        log_success "Configuracao editada e Nginx recarregado com sucesso"
+        return 0
     else
-        log_warning "Erro na configuracao. Corrija com: launchinfra --edit $project"
+        log_error "Erro na sintaxe da nova configuracao do Nginx! Revertendo..."
+        run_helper tee-nginx "$config_file" < "$backup_file"
+        run_helper nginx-reload 2>/dev/null || true
+        rm -f "$backup_file"
+        log_warning "As alteracoes que causaram erro foram mantidas em: $tmp_file"
+        log_info "Corrija a sintaxe antes de tentar novamente."
+        return 1
     fi
 }
 
