@@ -10,7 +10,7 @@ if [ "$BASEDIR" = "/usr/bin" ] || [ "$BASEDIR" = "/usr/local/bin" ]; then
     LIBDIR="/usr/share/launchinfra/lib"
 fi
 
-for module in logging config utils nginx_project cli; do
+for module in logging config utils modifiers nginx_project cli; do
     if [ -r "$LIBDIR/$module.sh" ]; then
         # shellcheck disable=SC1090
         . "$LIBDIR/$module.sh"
