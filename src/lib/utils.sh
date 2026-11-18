@@ -256,8 +256,12 @@ backup_project() {
 
     local backup_name backup_dir
     backup_name="$project-$(date +%Y%m%d-%H%M%S).tar.gz"
-    backup_dir="/tmp/launchinfra-backups"
-    mkdir -p "$backup_dir"
+    backup_dir="${BACKUP_DIR:-$HOME_DIR/backups/launchinfra}"
+    mkdir -p "$backup_dir" 2>/dev/null || {
+        backup_dir="${TMPDIR:-/tmp}/launchinfra-backups-$REAL_USER"
+        mkdir -p "$backup_dir"
+        chmod 700 "$backup_dir" 2>/dev/null || true
+    }
 
     log_info "Criando backup de $project..."
     if run_helper tar-backup "$backup_dir/$backup_name" "$USER_DIR" "$project" "$REAL_USER"; then

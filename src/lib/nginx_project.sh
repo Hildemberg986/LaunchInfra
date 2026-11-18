@@ -177,16 +177,20 @@ NGINX
         # O problema: o default_server (de setup-nginx) responde a qualquer host,
         # entao o Certbot pode acabar modificando o arquivo 'default' em vez do projeto.
         #
-        # Solucao robusta: salvamos o conteudo do default e restauramos depois,
-        # garantindo que o Certbot so consiga modificar o arquivo do projeto.
+        # Solucao robusta e segura: salvamos o conteudo do default em diretorio
+        # temporario isolado com mktemp (evitando condicoes de corrida e symlink attacks)
+        # e restauramos depois, garantindo que o Certbot so consiga modificar o arquivo do projeto.
 
+        local default_backup_dir=""
         local default_backup_tmp=""
         local default_was_enabled=0
 
         # Detecta se default existe como link ou arquivo
         if [ -L "$NGINX_ENABLED/default" ] || [ -f "$NGINX_ENABLED/default" ]; then
             default_was_enabled=1
-            default_backup_tmp="/tmp/launchinfra-default-backup-$$"
+            default_backup_dir=$(mktemp -d "${TMPDIR:-/tmp}/launchinfra.XXXXXXXXXX")
+            chmod 700 "$default_backup_dir"
+            default_backup_tmp="$default_backup_dir/default.conf"
 
             # Salva tambem o original do sites-available (caso o sites-enabled seja um arquivo independente)
             run_helper cat-nginx "$NGINX_AVAILABLE/default" 2>/dev/null > "$default_backup_tmp" || true
@@ -207,12 +211,12 @@ NGINX
         # SEMPRE restaura o default, mesmo em caso de erro
         if [ "$default_was_enabled" -eq 1 ]; then
             # Garante que o sites-available/default tem o conteudo original
-            if [ -s "$default_backup_tmp" ]; then
+            if [ -n "$default_backup_tmp" ] && [ -s "$default_backup_tmp" ]; then
                 run_helper cp-backup "$default_backup_tmp" "$NGINX_AVAILABLE/default"
             fi
             # Recria o link em sites-enabled
             run_helper ln-nginx "$NGINX_AVAILABLE/default" "$NGINX_ENABLED/default"
-            rm -f "$default_backup_tmp"
+            [ -n "$default_backup_dir" ] && rm -rf "$default_backup_dir"
             # Recarrega nginx
             run_helper nginx-reload
         fi
@@ -359,13 +363,17 @@ renew_ssl() {
     fi
 
     # CRITICO: Remove default_server temporariamente e salva backup
+    # em diretorio temporario isolado com mktemp (evitando condicoes de corrida e symlink attacks)
     # para garantir que o Certbot atue no arquivo do projeto, nao no default
+    local default_backup_dir=""
     local default_backup_tmp=""
     local default_was_enabled=0
 
     if [ -L "$NGINX_ENABLED/default" ] || [ -f "$NGINX_ENABLED/default" ]; then
         default_was_enabled=1
-        default_backup_tmp="/tmp/launchinfra-default-backup-$$"
+        default_backup_dir=$(mktemp -d "${TMPDIR:-/tmp}/launchinfra.XXXXXXXXXX")
+        chmod 700 "$default_backup_dir"
+        default_backup_tmp="$default_backup_dir/default.conf"
 
         # Salva o backup do default
         run_helper cat-nginx "$NGINX_AVAILABLE/default" 2>/dev/null > "$default_backup_tmp" || true
@@ -382,11 +390,11 @@ renew_ssl() {
 
     # SEMPRE restaura o default
     if [ "$default_was_enabled" -eq 1 ]; then
-        if [ -s "$default_backup_tmp" ]; then
+        if [ -n "$default_backup_tmp" ] && [ -s "$default_backup_tmp" ]; then
             run_helper cp-backup "$default_backup_tmp" "$NGINX_AVAILABLE/default"
         fi
         run_helper ln-nginx "$NGINX_AVAILABLE/default" "$NGINX_ENABLED/default"
-        rm -f "$default_backup_tmp"
+        [ -n "$default_backup_dir" ] && rm -rf "$default_backup_dir"
         run_helper nginx-reload
     fi
 
