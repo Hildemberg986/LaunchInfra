@@ -186,7 +186,29 @@ NGINX
             fi
         fi
 
-        log_info "Obtendo certificado SSL para $DOMINIO..."
+        # Valida propagacao de DNS antes de solicitar SSL
+        if [ "$NO_SSL" != "--no-ssl" ] && ! check_dns_propagation "$DOMINIO"; then
+            if [ "$FORCE" = "--force" ] || [ "$FORCE_SSL" = "--force-ssl" ]; then
+                log_info "Flag --force ativa. Continuando solicitacao de SSL mesmo com DNS pendente."
+            elif [ -t 0 ]; then
+                read -r -p "Deseja solicitar o certificado SSL mesmo com DNS pendente? (s/N): " resp_dns
+                if [[ ! "$resp_dns" =~ ^[Ss]$ ]]; then
+                    skip_ssl=1
+                fi
+            else
+                log_warning "Modo nao-interativo: SSL abortado para evitar bloqueio por rate limit da Let's Encrypt."
+                skip_ssl=1
+            fi
+
+            if [ "$skip_ssl" -eq 1 ]; then
+                log_warning "SSL nao configurado. O projeto foi mantido em HTTP."
+                log_info "Apos configurar o apontamento DNS de $DOMINIO, ative o SSL com: launchinfra --renew $PROJETO"
+                NO_SSL="--no-ssl"
+            fi
+        fi
+
+        if [ "$NO_SSL" != "--no-ssl" ]; then
+            log_info "Obtendo certificado SSL para $DOMINIO..."
 
         # CRITICO: Garante que o SSL seja aplicado ao arquivo do projeto, NAO ao default.
         # O problema: o default_server (de setup-nginx) responde a qualquer host,
@@ -250,6 +272,7 @@ NGINX
         else
             log_warning "Falha ao obter certificado SSL. Site continua em HTTP."
             log_info "Tente renovar manualmente: launchinfra --renew $PROJETO"
+        fi
         fi
     else
         log_info "Projeto criado sem SSL (HTTP apenas)"

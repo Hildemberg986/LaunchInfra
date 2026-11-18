@@ -292,3 +292,36 @@ get_domain_from_config() {
     [ ! -f "$config_file" ] && return 1
     grep -m1 "server_name" "$config_file" | awk '{print $2}' | tr -d ';'
 }
+
+# Obtem o IP publico do servidor
+get_public_ip() {
+    local ip
+    ip=$(curl -s -m 3 https://ifconfig.me 2>/dev/null || curl -s -m 3 https://api.ipify.org 2>/dev/null || curl -s -m 3 https://icanhazip.com 2>/dev/null || echo "")
+    echo "$ip" | grep -oE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' || true
+}
+
+# Resolve o IP de um dominio via getent ahosts
+resolve_domain_ip() {
+    local domain="$1"
+    getent ahosts "$domain" 2>/dev/null | awk '{print $1}' | grep -oE '^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$' | head -1
+}
+
+# Valida se o dominio ja propaga para este servidor antes de chamar Certbot
+check_dns_propagation() {
+    local domain="$1"
+    local resolved_ip
+    resolved_ip=$(resolve_domain_ip "$domain")
+    if [ -z "$resolved_ip" ]; then
+        log_warning "O dominio '$domain' ainda nao resolve para nenhum IP."
+        return 1
+    fi
+
+    local public_ip
+    public_ip=$(get_public_ip)
+    if [ -n "$public_ip" ] && [ "$resolved_ip" != "$public_ip" ]; then
+        log_warning "O dominio '$domain' aponta para $resolved_ip, mas o IP publico deste servidor e $public_ip."
+        return 1
+    fi
+
+    return 0
+}
