@@ -8,7 +8,7 @@ _launchinfra_completion() {
     prev="${COMP_WORDS[COMP_CWORD - 1]}"
     cword=$COMP_CWORD
 
-    local commands="--version --help setup-nginx config --list ls --list-ports ports --info --edit --backup backup --remove rm --disable --restore --enable --renew --check-ssl --check-port --check-domain mod --preset --no-ssl --domain --template --dry-run"
+    local commands="--version --help -h help setup-nginx config --list ls --list-ports ports --info --edit --backup backup --remove rm --disable --restore --enable --renew --check-ssl --check-port --check-domain mod --preset --no-ssl --domain --template --max-body --dry-run --force"
 
     # Função para pegar projetos usando mapfile
     get_projects() {
@@ -40,6 +40,9 @@ _launchinfra_completion() {
     fi
 
     case "$prev" in
+    help | --help | -h)
+        mapfile -t COMPREPLY < <(compgen -W "mod config" -- "$cur")
+        ;;
     --info | --edit | --remove | rm | --disable | --restore | --enable | --renew | --backup | backup)
         mapfile -t COMPREPLY < <(compgen -W "$(get_projects)" -- "$cur")
         ;;
