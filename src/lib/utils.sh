@@ -256,11 +256,16 @@ backup_project() {
         log_error "Nome de projeto invalido"
         return 1
     }
+
+    local NGINX_NAME
+    [ "$REAL_USER" = "root" ] && NGINX_NAME="$project" || NGINX_NAME="$REAL_USER-$project"
+    local config_file="$NGINX_AVAILABLE/$NGINX_NAME"
     local dir="$USER_DIR/$project"
-    [ ! -d "$dir" ] && {
-        log_error "Diretorio nao encontrado"
+
+    if [ ! -d "$dir" ] && [ ! -f "$config_file" ]; then
+        log_error "Projeto '$project' nao encontrado"
         return 1
-    }
+    fi
 
     local backup_name backup_dir
     backup_name="$project-$(date +%Y%m%d-%H%M%S).tar.gz"
@@ -272,7 +277,7 @@ backup_project() {
     }
 
     log_info "Criando backup de $project..."
-    if run_helper tar-backup "$backup_dir/$backup_name" "$USER_DIR" "$project" "$REAL_USER"; then
+    if run_helper tar-backup "$backup_dir/$backup_name" "$REAL_USER" "$dir" "$config_file"; then
         log_success "Backup salvo em: $backup_dir/$backup_name"
     else
         log_error "Falha ao criar backup"

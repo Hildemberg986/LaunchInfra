@@ -56,6 +56,7 @@ show_help() {
     echo "  --list, ls                  Lista seus projetos (root ve todos)"
     echo "  --info NOME                 Detalhes de um projeto"
     echo "  --edit NOME                 Edita o config Nginx do projeto"
+    echo "  --backup NOME               Cria backup do projeto (arquivos web + Nginx)"
     echo "  --disable NOME              Para um projeto (guardando a config)"
     echo "  --restore, --enable NOME    Reativa um projeto parado"
     echo "  --remove, rm NOME [--backup]  Apaga um projeto (backup opcional)"
@@ -184,6 +185,14 @@ dispatch_cli() {
             return 1
         fi
         edit_project "$2"
+        return $?
+        ;;
+    --backup | backup)
+        if [ -z "$2" ]; then
+            echo "Uso: launchinfra --backup NOME"
+            return 1
+        fi
+        backup_project "$2"
         return $?
         ;;
     --remove | rm)

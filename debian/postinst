@@ -205,10 +205,32 @@ case "$1" in
         ;;
     tar-backup)
         shift
-        check_safe_path "$1"
-        check_www_path "$2"
-        /bin/tar czf "$1" -C "$2" "$3"
-        /bin/chown "$4:$4" "$1"
+    tar-backup)
+        shift
+        local archive="$1" user="$2" web_dir="$3" nginx_conf="$4"
+        check_safe_path "$archive"
+        local tar_args=()
+        if [ -n "$web_dir" ] && [ -d "$web_dir" ]; then
+            check_www_path "$web_dir"
+            tar_args+=("-C" "$(dirname "$web_dir")" "$(basename "$web_dir")")
+        fi
+        if [ -n "$nginx_conf" ] && [ -f "$nginx_conf" ]; then
+            check_nginx_path "$nginx_conf"
+            tar_args+=("-C" "$(dirname "$nginx_conf")" "$(basename "$nginx_conf")")
+        fi
+
+        if [ ${#tar_args[@]} -gt 0 ]; then
+            /bin/tar czf "$archive" "${tar_args[@]}"
+            /bin/chown "$user:$user" "$archive" 2>/dev/null || true
+        elif [ -n "$3" ] && [ -d "$2/$3" ]; then
+            check_www_path "$2"
+            /bin/tar czf "$archive" -C "$2" "$3"
+            /bin/chown "$4:$4" "$archive" 2>/dev/null || true
+        else
+            echo "Nenhum arquivo para backup" >&2
+            exit 1
+        fi
+        ;;
         ;;
     ss-ports) ss -tulnp 2>/dev/null ;;
     *) echo "Comando invalido: $1"; exit 1 ;;
