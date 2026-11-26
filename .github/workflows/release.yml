@@ -112,8 +112,8 @@ jobs:
           printf "launchinfra (%s) %s; urgency=medium\n\n  * Release automatica v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" \
             "$VERSION_WITH_SERIES" "$SERIES" "$NEW" "$DATE" > "$TEMP"
 
-          # Adicionar changelog histórico (sem serie nos antigos)
-          tail -n +$(grep -n "^launchinfra" debian/changelog | head -2 | tail -1 | cut -d: -f1) debian/changelog >> "$TEMP" 2>/dev/null || true
+          # Adicionar changelog histórico
+          cat debian/changelog >> "$TEMP"
 
           mv "$TEMP" debian/changelog
 
@@ -246,7 +246,7 @@ jobs:
           printf "launchinfra (%s) UNRELEASED; urgency=medium\n\n  * Release automatica v%s\n\n -- Hildemberg Eling <hildembergeling@gmail.com>  %s\n\n" \
             "$NEW" "$NEW" "$DATE" > "$TEMP"
 
-          tail -n +$(grep -n "^launchinfra" debian/changelog | head -1 | cut -d: -f1 | xargs -I {} expr {} + 1) debian/changelog >> "$TEMP" 2>/dev/null || true
+          cat debian/changelog >> "$TEMP"
 
           mv "$TEMP" debian/changelog
           echo "✅ debian/changelog criado para repositório"
