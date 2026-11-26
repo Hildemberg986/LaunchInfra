@@ -1,5 +1,5 @@
 PACKAGE_NAME = launchinfra
-VERSION = 2.9.1
+VERSION = 2.9.2
 
 # REGRA PADRÃO - não falha mesmo se arquivo não existir
 all:
