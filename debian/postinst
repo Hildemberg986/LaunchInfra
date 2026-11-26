@@ -1,34 +1,6 @@
 #!/bin/bash
 set -e
 
-# Detecta qual gerenciador de servicos usar (systemd ou sysvinit)
-detect_service_manager() {
-    if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
-        echo "systemd"
-    elif command -v service >/dev/null 2>&1; then
-        echo "sysvinit"
-    else
-        echo "direct"
-    fi
-}
-
-reload_nginx() {
-    local svc_manager
-    svc_manager=$(detect_service_manager)
-    case "$svc_manager" in
-        systemd)
-            /bin/systemctl reload nginx 2>/dev/null || /bin/systemctl restart nginx 2>/dev/null
-            ;;
-        sysvinit)
-            /usr/sbin/service nginx reload 2>/dev/null || /usr/sbin/service nginx restart 2>/dev/null
-            ;;
-        direct)
-            # Fallback direto
-            /usr/sbin/nginx -s reload 2>/dev/null || /etc/init.d/nginx restart 2>/dev/null
-            ;;
-    esac
-}
-
 case "$1" in
 configure)
     echo "Configurando LaunchInfra..."
@@ -205,11 +177,12 @@ case "$1" in
         ;;
     tar-backup)
         shift
-    tar-backup)
-        shift
-        local archive="$1" user="$2" web_dir="$3" nginx_conf="$4"
+        archive="$1"
+        user="$2"
+        web_dir="$3"
+        nginx_conf="$4"
         check_safe_path "$archive"
-        local tar_args=()
+        tar_args=()
         if [ -n "$web_dir" ] && [ -d "$web_dir" ]; then
             check_www_path "$web_dir"
             tar_args+=("-C" "$(dirname "$web_dir")" "$(basename "$web_dir")")
@@ -222,15 +195,10 @@ case "$1" in
         if [ ${#tar_args[@]} -gt 0 ]; then
             /bin/tar czf "$archive" "${tar_args[@]}"
             /bin/chown "$user:$user" "$archive" 2>/dev/null || true
-        elif [ -n "$3" ] && [ -d "$2/$3" ]; then
-            check_www_path "$2"
-            /bin/tar czf "$archive" -C "$2" "$3"
-            /bin/chown "$4:$4" "$archive" 2>/dev/null || true
         else
             echo "Nenhum arquivo para backup" >&2
             exit 1
         fi
-        ;;
         ;;
     ss-ports) ss -tulnp 2>/dev/null ;;
     *) echo "Comando invalido: $1"; exit 1 ;;
